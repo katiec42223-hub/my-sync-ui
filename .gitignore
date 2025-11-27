@@ -1,0 +1,16 @@
+# Node
+node_modules/
+pnpm-lock.yaml
+dist/
+build/
+.env
+.DS_Store
+.svcode/
+.vscode/
+.idea/
+# Tauri/Rust
+src-tauri/target/
+target/
+**/(.rs.bk
+# Editor/temp
+*.log
