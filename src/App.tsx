@@ -1,17 +1,22 @@
 import TopCommandBar from "./components/TopCommandBar";
 import ShowProgrammer from "./components/ShowProgrammer";
-import ModelLayoutEditor  from "./components/ModelLayoutEditor/ModelLayoutEditor";
+import ModelLayoutEditor from "./components/ModelLayoutEditor/ModelLayoutEditor";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
 import TimelineEditor from "./components/TimelineEditor";
-import type {Fixture, ChannelChain, AlignmentGroup} from "./components/ModelLayoutEditor/modelTypes";
+import type {
+  Fixture,
+  ChannelChain,
+  AlignmentGroup,
+} from "./components/ModelLayoutEditor/modelTypes";
+import type {Song} from "./SongListEditor";
+import { ShowEvent } from "./types";
 
 type Layout = {
   fixtures: Fixture[];
   channels: ChannelChain[];
   alignmentGroups: AlignmentGroup[];
-};  
-
+};
 
 export default function App() {
   const [view, setView] = useState<"main" | "model-editor">("main");
@@ -20,6 +25,8 @@ export default function App() {
     channels: [],
     alignmentGroups: [],
   });
+  const [songList, setSongList] = useState<Song[]>([]);
+  const [events, setEvents] = useState<ShowEvent[]>([]); 
   useEffect(() => console.log("[APP] view =", view), [view]);
   return (
     <div>
@@ -33,21 +40,34 @@ export default function App() {
         getProjectJson={() => ({ version: "0.1", events: [] })}
         onOpenModelEditor={() => setView("model-editor")}
       />
-      <ShowProgrammer
-        fixtures={layout.fixtures}
-        channels={layout.channels}
-        alignmentGroups={layout.alignmentGroups}
-           />  
-      {view === "main" && <TimelineEditor />}
+
+      {view === "main" && (
+        <>
+          <ShowProgrammer
+            fixtures={layout.fixtures}
+            channels={layout.channels}
+            alignmentGroups={layout.alignmentGroups}
+            songList={songList}
+            onSongListChange={setSongList}
+            events={events}
+            onEventsChange={setEvents}
+          />
+          <TimelineEditor />
+        </>
+      )}
       {view === "model-editor" && (
-        <ModelLayoutEditor 
-        fixtures={layout.fixtures}
-        channels={layout.channels}
-        alignmentGroups={layout.alignmentGroups}
-        onFixturesChange={(f) => setLayout(p => ({...p, fixtures: f}))}
-        onChannelsChange={(c) => setLayout(p => ({...p, channels: c}))}
-        onAlignmentGroupsChange={(g) => setLayout(p => ({...p, alignmentGroups: g}))}
-        onBack={() => setView("main")}/>)}
+        <ModelLayoutEditor
+          fixtures={layout.fixtures}
+          channels={layout.channels}
+          alignmentGroups={layout.alignmentGroups}
+          onFixturesChange={(f) => setLayout((p) => ({ ...p, fixtures: f }))}
+          onChannelsChange={(c) => setLayout((p) => ({ ...p, channels: c }))}
+          onAlignmentGroupsChange={(g) =>
+            setLayout((p) => ({ ...p, alignmentGroups: g }))
+          }
+          onBack={() => setView("main")}
+        />
+      )}
       {/* the rest of your UI goes here (timeline, previews, etc.) */}
     </div>
   );

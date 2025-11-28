@@ -59,6 +59,17 @@ export default function SongListEditor({
     onChange(songs.filter((s) => s.id !== removeId));
   }
 
+  //lets me use escape key to cancel
+    useEffect(() => {
+    function handleEsc(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [onClose]);
+
   if (!open) return null;
   return (
     <div style={overlayStyle}>
