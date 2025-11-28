@@ -33,7 +33,11 @@ export default function App() {
         getProjectJson={() => ({ version: "0.1", events: [] })}
         onOpenModelEditor={() => setView("model-editor")}
       />
-      <ShowProgrammer />  
+      <ShowProgrammer
+        fixtures={layout.fixtures}
+        channels={layout.channels}
+        alignmentGroups={layout.alignmentGroups}
+           />  
       {view === "main" && <TimelineEditor />}
       {view === "model-editor" && (
         <ModelLayoutEditor 

@@ -5,6 +5,7 @@ import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
 import ShowEventsEditor from "../ShowEventEditor";
 import SongListEditor, { Song } from "../SongListEditor";
+import type { Fixture, ChannelChain, AlignmentGroup } from "./ModelLayoutEditor/modelTypes";
 
 type Timetable = {
   version: string;
@@ -21,7 +22,15 @@ type ShowEvent = {
     payload?: any;
 }
 
-export default function ShowProgrammer() {
+export default function ShowProgrammer({
+    fixtures = [],
+    channels = [],
+    alignmentGroups = []
+}:{
+    fixtures?: Fixture[];
+    channels?: ChannelChain[];
+    alignmentGroups?: AlignmentGroup[];     
+}) {
   const [tt, setTt] = useState<Timetable | null>(null);
   const [status, setStatus] = useState<string>("idle");
   const [blob, setBlob] = useState<Uint8Array | null>(null);
@@ -222,7 +231,11 @@ async function saveTimetable() {
   <ShowEventsEditor
     // pass the whole event object to the editor
     event={editingEvent}
+    songs={songList}
     // called when editor saves; upsert event into events[] and close modal
+    fixtures={fixtures.map(f => f.id)}
+    channels={channels.map(ch => 'Ch$ch.controllerChannel}')}
+    alignmentGroups={alignmentGroups.map(g => g.id)}
     onSave={(evt: ShowEvent) => {
       setEvents((rows) => {
         const idx = rows.findIndex((r) => r.id === evt.id);
