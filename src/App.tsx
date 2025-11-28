@@ -9,7 +9,7 @@ import type {
   ChannelChain,
   AlignmentGroup,
 } from "./components/ModelLayoutEditor/modelTypes";
-import type {Song} from "./SongListEditor";
+import type { Song } from "./SongListEditor";
 import { ShowEvent } from "./types";
 
 type Layout = {
@@ -26,7 +26,21 @@ export default function App() {
     alignmentGroups: [],
   });
   const [songList, setSongList] = useState<Song[]>([]);
-  const [events, setEvents] = useState<ShowEvent[]>([]); 
+  const [events, setEvents] = useState<ShowEvent[]>([]);
+
+  function getProjectData() {
+    return {
+      formatVersion: "1.0",
+      meta: {
+        created: new Date().toISOString(),
+        appName: "SYNCHRON",
+      },
+      layout,
+      songs: songList,
+      events,
+    };
+  }
+
   useEffect(() => console.log("[APP] view =", view), [view]);
   return (
     <div>
@@ -35,9 +49,35 @@ export default function App() {
         onPause={() => console.log("pause")}
         onRewind={(ms) => console.log("rewind", ms)}
         onForward={(ms) => console.log("forward", ms)}
-        onProjectLoaded={(json, path) => console.log("loaded", path, json)}
         onProjectSaved={(path) => console.log("saved", path)}
-        getProjectJson={() => ({ version: "0.1", events: [] })}
+        getProjectJson={getProjectData}
+        onProjectLoaded={(json, path) => {
+          console.log("loaded", path, json);
+
+          // Validate format version
+          if (json.formatVersion !== "1.0") {
+            console.warn("Unsupported format version:", json.formatVersion);
+          }
+
+          // Restore layout
+          if (json.layout) {
+            setLayout({
+              fixtures: json.layout.fixtures || [],
+              channels: json.layout.channels || [],
+              alignmentGroups: json.layout.alignmentGroups || [],
+            });
+          }
+
+          // Restore songs
+          if (Array.isArray(json.songs)) {
+            setSongList(json.songs);
+          }
+
+          // Restore events
+          if (Array.isArray(json.events)) {
+            setEvents(json.events);
+          }
+        }}
         onOpenModelEditor={() => setView("model-editor")}
       />
 

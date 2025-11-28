@@ -193,7 +193,7 @@ export default function ShowProgrammer({
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <h3 style={{ margin: 0 }}>Timetable & Events</h3>{" "}
+            <h3 style={{ margin: 0 }}>Events</h3>{" "}
             {/* changed label text */}
             <button
               onClick={openNewEventEditor}
@@ -205,34 +205,11 @@ export default function ShowProgrammer({
 
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button onClick={() => setSongPanelOpen(true)}>Song List...</button>
-            <button onClick={loadTimetable}>Load JSON…</button>
           </div>
         </div>
-        {tt ? (
-          <div style={{ marginTop: 12, fontSize: 13 }}>
-            <div>
-              <b>Target:</b> {tt.target}
-            </div>
-            <div>
-              <b>Duration:</b> {tt.duration_ms} ms
-            </div>
-            <div>
-              <b>Events:</b> {tt.events?.length ?? 0}
-            </div>
-          </div>
-        ) : (
-          <p style={{ opacity: 0.7 }}>No timetable loaded.</p>
-        )}
-        <hr style={{ margin: "12px 0" }} />
-        <button onClick={buildBlob} disabled={!tt}>
-          Build
-        </button>
-        <button onClick={saveTimetable}>Save</button>
-        <div style={{ marginTop: 8, fontSize: 12, opacity: 0.8 }}>{status}</div>
+        
         {/* ADD: Events table here on the left */}
-        <h4 style={{ marginTop: 16, marginBottom: 8 }}>
-          Events ({events.length})
-        </h4>
+        
         <table
           style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}
         >
