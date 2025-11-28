@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "git:remind": "node scripts/git-reminder.js",
+    "git:remind.watch": "node scripts/git-reminder.js --watch 300000"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.9.0",
