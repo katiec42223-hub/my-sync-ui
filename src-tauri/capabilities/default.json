@@ -10,6 +10,14 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "dialog:allow-confirm",
+    {
+      "identifier": "fs:allow-read-text-file",
+      "allow": [{ "path": "**" }]
+    },
+    {
+      "identifier": "fs:allow-write-text-file",
+      "allow": [{ "path": "**" }]
+    },
     "fs:allow-app-write",
     "fs:allow-app-read",
     "fs:allow-app-read-recursive",

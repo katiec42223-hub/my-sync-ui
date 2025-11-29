@@ -33,12 +33,27 @@ export interface VerticalSweepParams {
   smoothing: "linear" | "ease-in-out";
 }
 
+export interface BladeLineParams {
+  thicknessCm: number;              // line thickness in whole cm
+  colorMode: "solid" | "gradient" | "rainbow-line" | "rainbow-rotating" | "rainbow-line-rotating";
+  solidColor?: string;              // hex color if colorMode=solid
+  gradientStart?: string;           // gradient colors
+  gradientEnd?: string;
+  rainbowStart?: string;            // rainbow mode colors
+  rainbowEnd?: string;
+  stationary: boolean;              // true = fixed, false = rotating
+  rotationSpeed?: number;           // degrees per beat (if rotating)
+  rotationDirection?: "cw" | "ccw";
+  lineCount: number;                // number of lines (evenly spaced)
+}
+
 export interface FunctionDescriptor<P> {
   id: string;
   label: string;
   buildTimeline: (ctx: {
     params: P;
     tempoBpm: number;
+    durationMs: number;
     // selected elements:
     fixtureIds: string[];
     channelIds: string[];

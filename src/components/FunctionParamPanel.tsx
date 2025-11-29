@@ -13,15 +13,23 @@ export default function FunctionParamPanel({
   onChangeParam: (key: string, value: string) => void;
 }) {
   const funcs = listFunctions();
-  const fdesc = funcs.find(f => f.id === funcId);
+  const fdesc = funcs.find((f) => f.id === funcId);
 
   // Generic fallback if unknown function
   if (!fdesc) {
     return (
-      <div style={{ marginTop: 12, padding: 8, border: "1px solid #3a3d42", borderRadius: 6 }}>
+      <div
+        style={{
+          marginTop: 12,
+          padding: 8,
+          border: "1px solid #3a3d42",
+          borderRadius: 6,
+        }}
+      >
         <strong>Parameters for {funcId || "(select function)"}</strong>
         <div style={{ color: "#bbb", fontSize: 12, marginTop: 6 }}>
-          No specific UI for this function. Use the generic parameter list below.
+          No specific UI for this function. Use the generic parameter list
+          below.
         </div>
       </div>
     );
@@ -29,15 +37,26 @@ export default function FunctionParamPanel({
 
   // Example: vertical sweep UI (extend with more functions later)
   if (funcId === "fuse:verticalSweep") {
-    const get = (k: string) => params.find(p => p.key === k)?.value;
+    const get = (k: string) => params.find((p) => p.key === k)?.value;
     const mode = get("mode") || "smooth";
     return (
-      <div style={{ marginTop: 12, padding: 8, border: "1px solid #3a3d42", borderRadius: 6 }}>
+      <div
+        style={{
+          marginTop: 12,
+          padding: 8,
+          border: "1px solid #3a3d42",
+          borderRadius: 6,
+        }}
+      >
         <h4 style={{ marginTop: 0 }}>{fdesc.label} Parameters</h4>
 
         <label style={{ display: "block", marginBottom: 8 }}>
           Mode:
-          <select value={mode} onChange={(e) => onChangeParam("mode", e.target.value)} style={{ marginLeft: 8 }}>
+          <select
+            value={mode}
+            onChange={(e) => onChangeParam("mode", e.target.value)}
+            style={{ marginLeft: 8 }}
+          >
             <option value="smooth">Smooth</option>
             <option value="beat-jump">Beat Jump</option>
           </select>
@@ -90,7 +109,12 @@ export default function FunctionParamPanel({
           <input
             type="checkbox"
             checked={(get("reverseAtEnds") ?? "false") === "true"}
-            onChange={(e) => onChangeParam("reverseAtEnds", e.target.checked ? "true" : "false")}
+            onChange={(e) =>
+              onChangeParam(
+                "reverseAtEnds",
+                e.target.checked ? "true" : "false"
+              )
+            }
             style={{ marginLeft: 8 }}
           />
         </label>
@@ -141,104 +165,178 @@ export default function FunctionParamPanel({
   }
 
   if (funcId === "blade:line") {
-  const get = (k: string) => params.find(p => p.key === k)?.value;
-  const colorMode = get("colorMode") || "solid";
-  const stationary = (get("stationary") ?? "true") === "true";
-  
-  return (
-    <div style={{ marginTop: 12, padding: 8, border: "1px solid #3a3d42", borderRadius: 6 }}>
-      <h4 style={{ marginTop: 0 }}>{fdesc.label} Parameters</h4>
+    const get = (k: string) => params.find((p) => p.key === k)?.value;
+    const colorMode = get("colorMode") || "solid";
+    const stationary = (get("stationary") ?? "true") === "true";
 
-      <label style={{ display: "block", marginBottom: 8 }}>
-        Thickness (cm):
-        <input type="number" min={1} step={1} value={Math.round(Number(get("thickness") ?? "1")) || 1} 
-          onChange={(e) => onChangeParam("thickness", e.target.value)} style={{ marginLeft: 8, width: 80 }} />
-      </label>
+    return (
+      <div
+        style={{
+          marginTop: 12,
+          padding: 8,
+          border: "1px solid #3a3d42",
+          borderRadius: 6,
+        }}
+      >
+        <h4 style={{ marginTop: 0 }}>{fdesc.label} Parameters</h4>
 
-      <label style={{ display: "block", marginBottom: 8 }}>
-        Color Mode:
-        <select value={colorMode} onChange={(e) => onChangeParam("colorMode", e.target.value)} style={{ marginLeft: 8 }}>
-          <option value="solid">Solid</option>
-          <option value="gradient">Constant Gradient</option>
-          <option value="rainbow-line">Rainbow Line</option>
-          <option value="rainbow-rotating">Rainbow Rotating</option>
-          <option value="rainbow-line-rotating">Rainbow Line Rotating</option>
-        </select>
-      </label>
-
-      {colorMode === "solid" && (
         <label style={{ display: "block", marginBottom: 8 }}>
-          Color:
-          <input type="color" value={get("solidColor") ?? "#ffffff"} 
-            onChange={(e) => onChangeParam("solidColor", e.target.value)} style={{ marginLeft: 8 }} />
+          Thickness (cm):
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={Math.round(Number(get("thicknessCm")) || 1)}
+            onChange={(e) =>
+              onChangeParam(
+                "thicknessCm",
+                String(Math.max(1, Math.round(Number(e.target.value))))
+              )
+            }
+            style={{ marginLeft: 8, width: 80 }}
+          />
         </label>
-      )}
 
-      {colorMode === "gradient" && (
-        <>
+        <label style={{ display: "block", marginBottom: 8 }}>
+          Color Mode:
+          <select
+            value={colorMode}
+            onChange={(e) => onChangeParam("colorMode", e.target.value)}
+            style={{ marginLeft: 8 }}
+          >
+            <option value="solid">Solid</option>
+            <option value="gradient">Constant Gradient</option>
+            <option value="rainbow-line">Rainbow Line</option>
+            <option value="rainbow-rotating">Rainbow Rotating</option>
+            <option value="rainbow-line-rotating">Rainbow Line Rotating</option>
+          </select>
+        </label>
+
+        {colorMode === "solid" && (
           <label style={{ display: "block", marginBottom: 8 }}>
-            Gradient Start:
-            <input type="color" value={get("gradientStart") ?? "#ff0000"} 
-              onChange={(e) => onChangeParam("gradientStart", e.target.value)} style={{ marginLeft: 8 }} />
+            Color:
+            <input
+              type="color"
+              value={get("solidColor") ?? "#ffffff"}
+              onChange={(e) => onChangeParam("solidColor", e.target.value)}
+              style={{ marginLeft: 8 }}
+            />
           </label>
-          <label style={{ display: "block", marginBottom: 8 }}>
-            Gradient End:
-            <input type="color" value={get("gradientEnd") ?? "#0000ff"} 
-              onChange={(e) => onChangeParam("gradientEnd", e.target.value)} style={{ marginLeft: 8 }} />
-          </label>
-        </>
-      )}
+        )}
 
-      {(colorMode === "rainbow-line" || colorMode === "rainbow-rotating" || colorMode === "rainbow-line-rotating") && (
-  <>
-    <label style={{ display: "block", marginBottom: 8 }}>
-      Rainbow Start Color:
-      <input type="color" value={get("rainbowStart") ?? "#ff0000"} 
-        onChange={(e) => onChangeParam("rainbowStart", e.target.value)} style={{ marginLeft: 8 }} />
-    </label>
-    <label style={{ display: "block", marginBottom: 8 }}>
-      Rainbow End Color:
-      <input type="color" value={get("rainbowEnd") ?? "#ff00ff"} 
-        onChange={(e) => onChangeParam("rainbowEnd", e.target.value)} style={{ marginLeft: 8 }} />
-    </label>
-  </>
-)}
+        {colorMode === "gradient" && (
+          <>
+            <label style={{ display: "block", marginBottom: 8 }}>
+              Gradient Start:
+              <input
+                type="color"
+                value={get("gradientStart") ?? "#ff0000"}
+                onChange={(e) => onChangeParam("gradientStart", e.target.value)}
+                style={{ marginLeft: 8 }}
+              />
+            </label>
+            <label style={{ display: "block", marginBottom: 8 }}>
+              Gradient End:
+              <input
+                type="color"
+                value={get("gradientEnd") ?? "#0000ff"}
+                onChange={(e) => onChangeParam("gradientEnd", e.target.value)}
+                style={{ marginLeft: 8 }}
+              />
+            </label>
+          </>
+        )}
 
-      <label style={{ display: "block", marginBottom: 8 }}>
-        <input type="checkbox" checked={stationary} 
-          onChange={(e) => onChangeParam("stationary", e.target.checked ? "true" : "false")} />
-        Stationary (uncheck for rotation)
-      </label>
+        {(colorMode === "rainbow-line" ||
+          colorMode === "rainbow-rotating" ||
+          colorMode === "rainbow-line-rotating") && (
+          <>
+            <label style={{ display: "block", marginBottom: 8 }}>
+              Rainbow Start Color:
+              <input
+                type="color"
+                value={get("rainbowStart") ?? "#ff0000"}
+                onChange={(e) => onChangeParam("rainbowStart", e.target.value)}
+                style={{ marginLeft: 8 }}
+              />
+            </label>
+            <label style={{ display: "block", marginBottom: 8 }}>
+              Rainbow End Color:
+              <input
+                type="color"
+                value={get("rainbowEnd") ?? "#ff00ff"}
+                onChange={(e) => onChangeParam("rainbowEnd", e.target.value)}
+                style={{ marginLeft: 8 }}
+              />
+            </label>
+          </>
+        )}
 
-      {!stationary && (
-        <>
-          <label style={{ display: "block", marginBottom: 8 }}>
-            Rotation Speed (degrees/beat):
-            <input type="number" min={0} step={1} value={get("rotationSpeed") ?? "45"} 
-              onChange={(e) => onChangeParam("rotationSpeed", e.target.value)} style={{ marginLeft: 8, width: 100 }} />
-          </label>
-          <label style={{ display: "block", marginBottom: 8 }}>
-            Direction:
-            <select value={get("rotationDirection") ?? "cw"} onChange={(e) => onChangeParam("rotationDirection", e.target.value)} style={{ marginLeft: 8 }}>
-              <option value="cw">Clockwise</option>
-              <option value="ccw">Counter-Clockwise</option>
-            </select>
-          </label>
-        </>
-      )}
+        <label style={{ display: "block", marginBottom: 8 }}>
+          <input
+            type="checkbox"
+            checked={stationary}
+            onChange={(e) =>
+              onChangeParam("stationary", e.target.checked ? "true" : "false")
+            }
+          />{" "}
+          Stationary (uncheck for rotation)
+        </label>
 
-      <label style={{ display: "block", marginBottom: 8 }}>
-        Number of Lines:
-        <input type="number" min={1} step={1} value={get("lineCount") ?? "1"} 
-          onChange={(e) => onChangeParam("lineCount", e.target.value)} style={{ marginLeft: 8, width: 80 }} />
-      </label>
-    </div>
-  );
-}
+        {!stationary && (
+          <>
+            <label style={{ display: "block", marginBottom: 8 }}>
+              Rotation Speed (degrees/beat):
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={get("rotationSpeed") ?? "45"}
+                onChange={(e) => onChangeParam("rotationSpeed", e.target.value)}
+                style={{ marginLeft: 8, width: 100 }}
+              />
+            </label>
+            <label style={{ display: "block", marginBottom: 8 }}>
+              Direction:
+              <select
+                value={get("rotationDirection") ?? "cw"}
+                onChange={(e) =>
+                  onChangeParam("rotationDirection", e.target.value)
+                }
+                style={{ marginLeft: 8 }}
+              >
+                <option value="cw">Clockwise</option>
+                <option value="ccw">Counter-Clockwise</option>
+              </select>
+            </label>
+          </>
+        )}
+
+        <label style={{ display: "block", marginBottom: 8 }}>
+          Number of Lines:
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={get("lineCount") ?? "1"}
+            onChange={(e) => onChangeParam("lineCount", e.target.value)}
+            style={{ marginLeft: 8, width: 80 }}
+          />
+        </label>
+      </div>
+    );
+  }
 
   // Fallback for known function without a hardcoded panel yet
   return (
-    <div style={{ marginTop: 12, padding: 8, border: "1px solid #3a3d42", borderRadius: 6 }}>
+    <div
+      style={{
+        marginTop: 12,
+        padding: 8,
+        border: "1px solid #3a3d42",
+        borderRadius: 6,
+      }}
+    >
       <strong>{fdesc.label} Parameters</strong>
       <div style={{ color: "#bbb", fontSize: 12, marginTop: 6 }}>
         Custom panel not implemented; use generic parameter list below.

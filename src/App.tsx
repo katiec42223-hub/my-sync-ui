@@ -57,6 +57,43 @@ export default function App() {
     };
   }
 
+  
+
+  // Auto-load last project on mount
+  useEffect(() => {
+    const lastProject = localStorage.getItem("lastProjectPath");
+    if (lastProject) {
+      (async () => {
+        console.log("Attempting to auto load:", lastProject);
+        try {
+          const { readTextFile } = await import("@tauri-apps/plugin-fs");
+          const txt = await readTextFile(lastProject);
+          const json = JSON.parse(txt);
+
+          if (json.formatVersion !== "1.0") {
+            console.warn("Unsupported format version:", json.formatVersion);
+          }
+          if (json.layout) {
+            setLayout({
+              fixtures: json.layout.fixtures || [],
+              channels: json.layout.channels || [],
+              alignmentGroups: json.layout.alignmentGroups || [],
+            });
+          }
+          if (Array.isArray(json.songs)) setSongList(json.songs);
+          if (Array.isArray(json.events)) setEvents(json.events);
+          if (typeof json.soundtrack === "string")
+            setSoundtrack(json.soundtrack);
+
+          console.log("Auto-loaded last project:", lastProject);
+        } catch (e) {
+          console.error("Failed to auto-load project:", e);
+          localStorage.removeItem("lastProjectPath");
+        }
+      })();
+    }
+  }, []);
+
   useEffect(() => console.log("[APP] view =", view), [view]);
   return (
     <div>
@@ -98,6 +135,9 @@ export default function App() {
           if (typeof json.soundtrack === "string") {
             setSoundtrack(json.soundtrack);
           }
+
+          // Store this as the last opened project
+          localStorage.setItem("lastProjectPath", path || "");
         }}
         onOpenModelEditor={() => setView("model-editor")}
       />

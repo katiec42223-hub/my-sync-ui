@@ -196,6 +196,8 @@ export default function TopCommandBar({
       await writeTextFile(dest, JSON.stringify(data, null, 2));
       setProjectPath(dest);
       onProjectSaved?.(dest);
+      localStorage.setItem('lastProjectPath', dest);  
+      console.log("Saved path to local", dest);
     } catch (e) {
       console.error("save failed:", e);
     }
