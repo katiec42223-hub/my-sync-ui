@@ -36,12 +36,14 @@ export const bladeLine: FunctionDescriptor<BladeLineParams> = {
     rotationSpeed: 45,              // degrees per beat
     rotationDirection: "cw",
     lineCount: 1,
+    timingMode: "smooth",
+    degreesPerBeat: 45,
+    beatsPerRev: 4,
   },
   buildTimeline: ({ params, tempoBpm, durationMs }) => {
-    const msPerBeat = 60000 / tempoBpm;
     const timeline: Array<{
       timeMs: number;
-      pixelsOn: Array<{ fixtureId: string; pixelIndices: number[]; color: string }>;
+      pixelsOn: Array<{ fixtureId: string; pixelIndices: number[]}>;
     }> = [];
 
     // Blade config: 2 blades × 2 segments × 36 pixels
@@ -51,40 +53,56 @@ export const bladeLine: FunctionDescriptor<BladeLineParams> = {
     // Assume 1cm ≈ 1 pixel for now (adjust based on actual blade length)
     const thicknessPx = Math.max(1, Math.round(params.thicknessCm));
 
-    // Degrees per line (evenly spaced around 360°)
+        // Degrees per line (evenly spaced around 360°)
     const degreesPerLine = 360 / params.lineCount;
 
-    // Sample at 3° slices (120 frames per revolution)
-    const SLICE_DEGREES = 3;
-    const slicesPerRev = 360 / SLICE_DEGREES;
-    
-    // Estimate RPM from tempo (rough heuristic: 1 beat ≈ 1 rev at moderate tempo)
-    // For now, assume show duration maps to rotations; refine later with actual RPM
-    const estimatedRevs = durationMs / (msPerBeat * 4); // assume 4 beats per rev
-    const totalSlices = Math.ceil(estimatedRevs * slicesPerRev);
+    // Angle sampling
+    const SLICE_DEGREES = 3; // visual resolution (3° per frame)
+    const msPerBeat = 60000 / tempoBpm;
+
+    // Effective rotation in degrees per beat:
+    // priority: explicit `degreesPerBeat` → derived from `beatsPerRev` → legacy `rotationSpeed`
+    const effectiveDegPerBeat =
+      (typeof params.degreesPerBeat === "number" && params.degreesPerBeat > 0)
+        ? params.degreesPerBeat
+        : (typeof params.beatsPerRev === "number" && params.beatsPerRev! > 0)
+          ? (360 / params.beatsPerRev!)
+          : (params.rotationSpeed ?? 45);
+
+    // Time per 3° slice when rotating; otherwise use a modest fixed time step
+    const sliceMs = params.stationary
+      ? 50 // ~20 FPS for stationary visuals
+      : msPerBeat * (SLICE_DEGREES / Math.max(1, effectiveDegPerBeat));
+
+    const totalSlices = Math.ceil(durationMs / sliceMs);
 
     for (let slice = 0; slice < totalSlices; slice++) {
-      const t = (slice / slicesPerRev) * (msPerBeat * 4); // time for this slice
+      const t = slice * sliceMs;
       if (t > durationMs) break;
 
-      // Current angle of this slice
-      let baseAngle = (slice * SLICE_DEGREES) % 360;
+      // Base angle from timing parameters
+      let baseAngle = 0;
 
-      // If rotating, offset by rotation speed
       if (!params.stationary) {
-        const rotationOffset = (t / msPerBeat) * params.rotationSpeed!;
-        baseAngle = (baseAngle + (params.rotationDirection === "cw" ? rotationOffset : -rotationOffset)) % 360;
+        const beatsElapsed = t / msPerBeat;
+        const beatPhase = params.timingMode === "beat-jump"
+          ? Math.floor(beatsElapsed)                  // quantize at whole beats
+          : beatsElapsed;                              // smooth progression
+
+        let angle = beatPhase * effectiveDegPerBeat;   // degrees progressed
+        if (params.rotationDirection === "ccw") angle = -angle;
+
+        // Normalize to [0, 360)
+        baseAngle = ((angle % 360) + 360) % 360;
       }
 
-const pixelsOn: Array<{ fixtureId: string; pixelIndices: number[]; color: string }> = [];
+const pixelsOn: Array<{ fixtureId: string; pixelIndices: number[] }> = [];
 
       // For each line
       for (let lineIdx = 0; lineIdx < params.lineCount; lineIdx++) {
         const lineAngle = (baseAngle + lineIdx * degreesPerLine) % 360;
 
         // Determine which pixels to light based on line angle and thickness
-        // Line spans from lineAngle - thickness/2 to lineAngle + thickness/2
-        // For simplicity, map angle directly to pixel position (0-35 for each segment)
         const centerPixel = Math.round((lineAngle / 360) * PIXELS_PER_SEGMENT);
 
         const pixelsToLight: number[] = [];
@@ -93,31 +111,18 @@ const pixelsOn: Array<{ fixtureId: string; pixelIndices: number[]; color: string
           pixelsToLight.push(px);
         }
 
-        // Determine color based on mode
-        let color = params.solidColor || "#ffffff";
-        if (params.colorMode === "gradient") {
-          const t = lineAngle / 360;
-          const rgb = lerpColor(params.gradientStart!, params.gradientEnd!, t);
-          color = `#${rgb.r.toString(16).padStart(2, '0')}${rgb.g.toString(16).padStart(2, '0')}${rgb.b.toString(16).padStart(2, '0')}`;
-        } else if (params.colorMode.startsWith("rainbow")) {
-          const t = lineAngle / 360;
-          const rgb = lerpColor(params.rainbowStart!, params.rainbowEnd!, t);
-          color = `#${rgb.r.toString(16).padStart(2, '0')}${rgb.g.toString(16).padStart(2, '0')}${rgb.b.toString(16).padStart(2, '0')}`;
-        }
-
-        // Apply to all segments (this is a blade function, lights all segments equally for now)
+        // Apply to all segments equally for now
         SEGMENTS.forEach(segId => {
           pixelsOn.push({
             fixtureId: segId,
             pixelIndices: pixelsToLight,
-            color
           });
         });
       }
 
       timeline.push({
         timeMs: Math.round(t),
-        pixelsOn 
+        pixelsOn
       });
     }
 

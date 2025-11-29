@@ -2,8 +2,35 @@ export type ShowEvent = {
   id: string;
   songId: number;
   durationMs: number;
-  func: string;
+  
+  // Legacy fields (for backward compat)
+  func?: string;
   payload?: any;
+  
+  // New structured payload
+  blade?: {
+    top: {
+      func: string;
+      params: any;
+      media?: string[];
+    };
+    bottom: {
+      func: string;
+      params: any;
+      media?: string[];
+    };
+  };
+  fuselage?: {
+    func: string;
+    params: any;
+    assignments?: {
+      fixtureIds: string[];
+      channelIds: string[];
+      groupIds: string[];
+      pixels?: number[];
+      channelPixelMap?: Record<string, number[]>;
+    };
+  };
 };
 
 export type BladeMedia = {
@@ -45,6 +72,9 @@ export interface BladeLineParams {
   rotationSpeed?: number;           // degrees per beat (if rotating)
   rotationDirection?: "cw" | "ccw";
   lineCount: number;                // number of lines (evenly spaced)
+  timingMode: "smooth" | "beat-jump";
+  degreesPerBeat: number;
+  beatsPerRev?: number; 
 }
 
 export interface FunctionDescriptor<P> {

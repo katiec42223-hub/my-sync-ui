@@ -1,5 +1,5 @@
 // src/pages/ShowProgrammer.tsx
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
@@ -147,7 +147,7 @@ export default function ShowProgrammer({
     if (songList.length === 0) {
       setSongPanelOpen(true);
       return;
-      }
+    }
 
     const newEvent: ShowEvent = {
       id: crypto.randomUUID?.() ?? String(Date.now()),
@@ -186,6 +186,86 @@ export default function ShowProgrammer({
     }
   }
 
+  // Preview selection: prefer currently editing event, else first blade:line, else first event
+  const previewEvent: ShowEvent | null = useMemo(() => {
+    if (editingEvent) return editingEvent;
+    const bladeEv = events.find((e) => e.func === "blade:line");
+    return bladeEv ?? (events.length ? events[0] : null);
+  }, [editingEvent, events]);
+
+  // Tempo from song list
+  const tempoBpm = useMemo(() => {
+    if (!previewEvent) return 120;
+    const song = songList.find((s) => s.id === previewEvent.songId);
+    return song?.tempo ?? 120;
+  }, [previewEvent, songList]);
+
+  // Playback state
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playheadMs, setPlayheadMs] = useState(0);
+  const rafRef = React.useRef<number | null>(null);
+  const lastTsRef = React.useRef<number | null>(null);
+
+  // Controls hook into left-bottom bar callbacks if provided, but drive local state too
+  function handlePlay() {
+    setIsPlaying(true);
+    onPlay?.();
+  }
+  function handlePause() {
+    setIsPlaying(false);
+    lastTsRef.current = null;
+    onPause?.();
+  }
+  function handleSeek(deltaMs: number) {
+    setPlayheadMs((p) => Math.max(0, p + deltaMs));
+    if (deltaMs < 0) onRewind?.(-deltaMs);
+    else onForward?.(deltaMs);
+  }
+
+  // Animation loop
+  React.useEffect(() => {
+    if (!isPlaying) {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      return;
+    }
+    function tick(ts: number) {
+      if (lastTsRef.current == null) lastTsRef.current = ts;
+      const dt = ts - lastTsRef.current;
+      lastTsRef.current = ts;
+      setPlayheadMs((p) => p + dt);
+      rafRef.current = requestAnimationFrame(tick);
+    }
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+      lastTsRef.current = null;
+    };
+  }, [isPlaying]);
+
+  // Compute current base angle like bladeLine.ts
+  function computeBaseAngle(params: any, tempo: number, tMs: number): number {
+    const msPerBeat = 60000 / Math.max(1, tempo);
+    const effectiveDegPerBeat =
+      typeof params.degreesPerBeat === "number" && params.degreesPerBeat > 0
+        ? params.degreesPerBeat
+        : typeof params.beatsPerRev === "number" && params.beatsPerRev > 0
+        ? 360 / params.beatsPerRev
+        : params.rotationSpeed ?? 45;
+
+    if (params.stationary) return 0;
+
+    const beatsElapsed = tMs / msPerBeat;
+    const timingMode = params.timingMode ?? "smooth";
+    const beatPhase =
+      timingMode === "beat-jump" ? Math.floor(beatsElapsed) : beatsElapsed;
+
+    let angle = beatPhase * Math.max(1, effectiveDegPerBeat);
+    if (params.rotationDirection === "ccw") angle = -angle;
+    return ((angle % 360) + 360) % 360;
+  }
+
   return (
     <div
       style={{
@@ -205,8 +285,7 @@ export default function ShowProgrammer({
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <h3 style={{ margin: 0 }}>Events</h3>{" "}
-            {/* changed label text */}
+            <h3 style={{ margin: 0 }}>Events</h3> {/* changed label text */}
             <button
               onClick={openNewEventEditor}
               style={{ padding: "6px 10px" }}
@@ -219,9 +298,9 @@ export default function ShowProgrammer({
             <button onClick={() => setSongPanelOpen(true)}>Song List...</button>
           </div>
         </div>
-        
+
         {/* ADD: Events table here on the left */}
-        
+
         <table
           style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}
         >
@@ -301,27 +380,35 @@ export default function ShowProgrammer({
             ))}
           </tbody>
         </table>
-        <div style={{
-  position: "absolute",
-  left: 0,
-  bottom: 0,
-  width: "380px",
-  background: "#23272a",
-  borderTop: "1px solid #2f3136",
-  padding: "8px 12px",
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  zIndex: 10
-}}>
-  <button onClick={onPlay}>Play</button>
-  <button onClick={onPause}>Pause</button>
-  <button onClick={() => onRewind?.(5000)}>⟲</button>
-  <button onClick={() => onForward?.(5000)}>⟶</button>
-  <span style={{ marginLeft: 8, fontVariantNumeric: "tabular-nums" }}>{/* timecode here */}</span>
-  <button style={{ marginLeft: "auto" }} onClick={onSelectSoundtrack}>Select Soundtrack</button>
-  {soundtrack && <span style={{ fontSize: 12, color: "#bbb" }}>{soundtrack}</span>}
-</div>
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            bottom: 0,
+            width: "380px",
+            background: "#23272a",
+            borderTop: "1px solid #2f3136",
+            padding: "8px 12px",
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            zIndex: 10,
+          }}
+        >
+          <button onClick={handlePlay}>Play</button>
+          <button onClick={handlePause}>Pause</button>
+          <button onClick={() => handleSeek(-5000)}>⟲</button>
+          <button onClick={() => handleSeek(5000)}>⟶</button>
+          <span style={{ marginLeft: 8, fontVariantNumeric: "tabular-nums" }}>
+            {/* timecode here */}
+          </span>
+          <button style={{ marginLeft: "auto" }} onClick={onSelectSoundtrack}>
+            Select Soundtrack
+          </button>
+          {soundtrack && (
+            <span style={{ fontSize: 12, color: "#bbb" }}>{soundtrack}</span>
+          )}
+        </div>
         {/* [ADD] Song List modal */}
         <SongListEditor
           open={songPanelOpen}
@@ -336,15 +423,210 @@ export default function ShowProgrammer({
         <h3>Preview & Program</h3>
         <div
           style={{
-            height: 260,
+            height: 320,
             border: "1px dashed #3a3d42",
             borderRadius: 8,
             marginBottom: 12,
             display: "grid",
-            placeItems: "center",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 8,
+            position: "relative",
+            background: "#1f2023",
+            padding: 8,
           }}
         >
-          <span style={{ opacity: 0.6 }}>POV/Fuselage preview placeholder</span>
+          {/* Top blade preview */}
+          <div
+            style={{
+              display: "grid",
+              placeItems: "center",
+              position: "relative",
+              borderRight: "1px solid #2f3136",
+            }}
+          >
+            {previewEvent ? (
+              (() => {
+                const paramsTop =
+                  previewEvent.blade?.top?.params ??
+                  previewEvent.payload?.topParams ??
+                  previewEvent.payload?.params ??
+                  previewEvent.payload ??
+                  {};
+                const baseAngleTop = computeBaseAngle(
+                  paramsTop,
+                  tempoBpm,
+                  playheadMs
+                );
+                const lineCountTop = Math.max(
+                  1,
+                  Number(paramsTop.lineCount ?? 1)
+                );
+                const degreesPerLineTop = 360 / lineCountTop;
+
+                const size = 280;
+                const cx = size / 2;
+                const cy = size / 2;
+                const rOuter = 110;
+                const rInner = 80;
+
+                const lines = new Array(lineCountTop).fill(0).map((_, i) => {
+                  const angle =
+                    ((baseAngleTop + i * degreesPerLineTop) % 360) *
+                    (Math.PI / 180);
+                  const x1 = cx + Math.cos(angle) * rOuter;
+                  const y1 = cy + Math.sin(angle) * rOuter;
+                  const x2 = cx + Math.cos(angle) * rInner;
+                  const y2 = cy + Math.sin(angle) * rInner;
+                  return { x1, y1, x2, y2 };
+                });
+
+                return (
+                  <svg width={size} height={size}>
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={rOuter}
+                      fill="none"
+                      stroke="#444"
+                    />
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={rInner}
+                      fill="none"
+                      stroke="#444"
+                    />
+                    {lines.map((l, idx) => (
+                      <line
+                        key={idx}
+                        x1={l.x2}
+                        y1={l.y2}
+                        x2={l.x1}
+                        y2={l.y1}
+                        stroke="#66d9ef"
+                        strokeWidth={Math.max(
+                          1,
+                          Number(paramsTop.thicknessCm ?? 1)
+                        )}
+                        strokeLinecap="round"
+                      />
+                    ))}
+                    <text x={8} y={20} fill="#bbb" fontSize="12">
+                      Top • {tempoBpm} BPM • t={Math.round(playheadMs)}ms
+                    </text>
+                  </svg>
+                );
+              })()
+            ) : (
+              <span style={{ opacity: 0.6 }}>No event to preview</span>
+            )}
+          </div>
+
+          {/* Bottom blade preview */}
+          <div
+            style={{
+              display: "grid",
+              placeItems: "center",
+              position: "relative",
+            }}
+          >
+            {previewEvent ? (
+              (() => {
+                const paramsBottom =
+                  previewEvent.blade?.bottom?.params ??
+                  previewEvent.payload?.bottomParams ??
+                  previewEvent.payload?.params ??
+                  previewEvent.payload ??
+                  {};
+                const baseAngleBottom = computeBaseAngle(
+                  paramsBottom,
+                  tempoBpm,
+                  playheadMs
+                );
+                const lineCountBottom = Math.max(
+                  1,
+                  Number(paramsBottom.lineCount ?? 1)
+                );
+                const degreesPerLineBottom = 360 / lineCountBottom;
+
+                const size = 280;
+                const cx = size / 2;
+                const cy = size / 2;
+                const rOuter = 110;
+                const rInner = 80;
+
+                const lines = new Array(lineCountBottom).fill(0).map((_, i) => {
+                  const angle =
+                    ((baseAngleBottom + i * degreesPerLineBottom) % 360) *
+                    (Math.PI / 180);
+                  const x1 = cx + Math.cos(angle) * rOuter;
+                  const y1 = cy + Math.sin(angle) * rOuter;
+                  const x2 = cx + Math.cos(angle) * rInner;
+                  const y2 = cy + Math.sin(angle) * rInner;
+                  return { x1, y1, x2, y2 };
+                });
+
+                return (
+                  <svg width={size} height={size}>
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={rOuter}
+                      fill="none"
+                      stroke="#444"
+                    />
+                    <circle
+                      cx={cx}
+                      cy={cy}
+                      r={rInner}
+                      fill="none"
+                      stroke="#444"
+                    />
+                    {lines.map((l, idx) => (
+                      <line
+                        key={idx}
+                        x1={l.x2}
+                        y1={l.y2}
+                        x2={l.x1}
+                        y2={l.y1}
+                        stroke="#f7b955"
+                        strokeWidth={Math.max(
+                          1,
+                          Number(paramsBottom.thicknessCm ?? 1)
+                        )}
+                        strokeLinecap="round"
+                      />
+                    ))}
+                    <text x={8} y={20} fill="#bbb" fontSize="12">
+                      Bottom • {tempoBpm} BPM • t={Math.round(playheadMs)}ms
+                    </text>
+                  </svg>
+                );
+              })()
+            ) : (
+              <span style={{ opacity: 0.6 }}>No event to preview</span>
+            )}
+          </div>
+
+          {/* Local transport overlay for preview */}
+          <div
+            style={{
+              position: "absolute",
+              bottom: 8,
+              right: 8,
+              display: "flex",
+              gap: 8,
+            }}
+          >
+            <button onClick={handlePlay} disabled={isPlaying}>
+              Play
+            </button>
+            <button onClick={handlePause} disabled={!isPlaying}>
+              Pause
+            </button>
+            <button onClick={() => handleSeek(-5000)}>⟲ -5s</button>
+            <button onClick={() => handleSeek(5000)}>⟶ +5s</button>
+          </div>
         </div>
 
         {/* [ADD] Row editor modal — blade media for the selected event */}

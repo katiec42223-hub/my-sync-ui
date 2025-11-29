@@ -9,7 +9,7 @@ export default function FunctionParamPanel({
   onChangeParam,
 }: {
   funcId: string;
-  params: ParamRow[];
+  params: Record<string, any>;  // Changed from ParamRow[]
   onChangeParam: (key: string, value: string) => void;
 }) {
   const funcs = listFunctions();
@@ -37,7 +37,7 @@ export default function FunctionParamPanel({
 
   // Example: vertical sweep UI (extend with more functions later)
   if (funcId === "fuse:verticalSweep") {
-    const get = (k: string) => params.find((p) => p.key === k)?.value;
+    const get = (k: string) => String(params[k] ?? "");
     const mode = get("mode") || "smooth";
     return (
       <div
@@ -165,7 +165,7 @@ export default function FunctionParamPanel({
   }
 
   if (funcId === "blade:line") {
-    const get = (k: string) => params.find((p) => p.key === k)?.value;
+    const get = (k: string) => String(params[k] ?? "");
     const colorMode = get("colorMode") || "solid";
     const stationary = (get("stationary") ?? "true") === "true";
 
@@ -283,6 +283,7 @@ export default function FunctionParamPanel({
           Stationary (uncheck for rotation)
         </label>
 
+{/* 
         {!stationary && (
           <>
             <label style={{ display: "block", marginBottom: 8 }}>
@@ -311,6 +312,71 @@ export default function FunctionParamPanel({
             </label>
           </>
         )}
+         */}
+
+         {!stationary && (
+  <>
+    <label style={{ display: "block", marginBottom: 8 }}>
+      Timing Mode:
+      <select
+        value={get("timingMode") ?? "smooth"}
+        onChange={(e) => onChangeParam("timingMode", e.target.value)}
+        style={{ marginLeft: 8 }}
+      >
+        <option value="smooth">Smooth</option>
+        <option value="beat-jump">Beat Jump</option>
+      </select>
+    </label>
+
+    <label style={{ display: "block", marginBottom: 8 }}>
+      Degrees per Beat:
+      <input
+        type="number"
+        min={1}
+        step={1}
+        value={get("degreesPerBeat") ?? "45"}
+        onChange={(e) => onChangeParam("degreesPerBeat", e.target.value)}
+        style={{ marginLeft: 8, width: 100 }}
+      />
+    </label>
+
+    <label style={{ display: "block", marginBottom: 8 }}>
+      Beats per Revolution (360°):
+      <input
+        type="number"
+        min={1}
+        step={1}
+        value={get("beatsPerRev") ?? "4"}
+        onChange={(e) => onChangeParam("beatsPerRev", e.target.value)}
+        style={{ marginLeft: 8, width: 100 }}
+      />
+    </label>
+
+    <label style={{ display: "block", marginBottom: 8 }}>
+      Rotation Speed (degrees/beat):
+      <input
+        type="number"
+        min={0}
+        step={1}
+        value={get("rotationSpeed") ?? "45"}
+        onChange={(e) => onChangeParam("rotationSpeed", e.target.value)}
+        style={{ marginLeft: 8, width: 100 }}
+      />
+    </label>
+
+    <label style={{ display: "block", marginBottom: 8 }}>
+      Direction:
+      <select
+        value={get("rotationDirection") ?? "cw"}
+        onChange={(e) => onChangeParam("rotationDirection", e.target.value)}
+        style={{ marginLeft: 8 }}
+      >
+        <option value="cw">Clockwise</option>
+        <option value="ccw">Counter-Clockwise</option>
+      </select>
+    </label>
+  </>
+)}
 
         <label style={{ display: "block", marginBottom: 8 }}>
           Number of Lines:
