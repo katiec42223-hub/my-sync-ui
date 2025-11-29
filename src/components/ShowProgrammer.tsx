@@ -35,6 +35,12 @@ export default function ShowProgrammer({
   onSongListChange,
   events = [],
   onEventsChange,
+  onPlay,
+  onPause,
+  onRewind,
+  onForward,
+  onSelectSoundtrack,
+  soundtrack,
 }: {
   fixtures?: Fixture[];
   channels?: ChannelChain[];
@@ -43,6 +49,12 @@ export default function ShowProgrammer({
   onSongListChange?: (songs: Song[]) => void;
   events?: ShowEvent[];
   onEventsChange?: (events: ShowEvent[]) => void;
+  onPlay?: () => void;
+  onPause?: () => void;
+  onRewind?: (ms?: number) => void;
+  onForward?: (ms?: number) => void;
+  onSelectSoundtrack?: () => void;
+  soundtrack?: string;
 }) {
   const [tt, setTt] = useState<Timetable | null>(null);
   const [status, setStatus] = useState<string>("idle");
@@ -289,6 +301,27 @@ export default function ShowProgrammer({
             ))}
           </tbody>
         </table>
+        <div style={{
+  position: "absolute",
+  left: 0,
+  bottom: 0,
+  width: "380px",
+  background: "#23272a",
+  borderTop: "1px solid #2f3136",
+  padding: "8px 12px",
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  zIndex: 10
+}}>
+  <button onClick={onPlay}>Play</button>
+  <button onClick={onPause}>Pause</button>
+  <button onClick={() => onRewind?.(5000)}>⟲</button>
+  <button onClick={() => onForward?.(5000)}>⟶</button>
+  <span style={{ marginLeft: 8, fontVariantNumeric: "tabular-nums" }}>{/* timecode here */}</span>
+  <button style={{ marginLeft: "auto" }} onClick={onSelectSoundtrack}>Select Soundtrack</button>
+  {soundtrack && <span style={{ fontSize: 12, color: "#bbb" }}>{soundtrack}</span>}
+</div>
         {/* [ADD] Song List modal */}
         <SongListEditor
           open={songPanelOpen}

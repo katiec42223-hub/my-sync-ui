@@ -88,6 +88,9 @@ export default function TopCommandBar({
   const [playing, setPlaying] = useState(false);
   const [timeMs, setTimeMs] = useState(0);
   const [projectPath, setProjectPath] = useState<string | undefined>(undefined);
+  const [selectedFuselagePort, setSelectedFuselagePort] = useState<string>("");
+  const [selectedBladePort, setSelectedBladePort] = useState<string>("");
+
 
   // Time readout mm:ss.mmm
   const timecode = useMemo(() => {
@@ -259,13 +262,15 @@ export default function TopCommandBar({
       <button onClick={() => onOpenModelEditor?.()}>Model Layout Editor</button>
     </TopbarMenu>
 
-    {/* Transport */}
+{/* 
+    * Transport *
     <div style={groupStyle}>
       <button onClick={() => jump(-1)} title="Rewind (J)">⟲</button>
       <button onClick={handlePlayPause} title="Play/Pause (Space)">{playing ? "⏸" : "▶"}</button>
       <button onClick={() => jump(1)} title="Forward (L)">⟶</button>
       <span style={{ marginLeft: 8, fontVariantNumeric: "tabular-nums" }}>{timecode}</span>
-    </div>
+    </div> 
+    */}
 
     {/* Target & Port */}
     <div style={groupStyle}>
@@ -274,16 +279,43 @@ export default function TopCommandBar({
       <label style={radioStyle}><input type="radio" name="tgt" checked={target==="fuselage"} onChange={()=>setTarget("fuselage")} /> Fuselage</label>
       <label style={radioStyle}><input type="radio" name="tgt" checked={target==="both"} onChange={()=>setTarget("both")} /> Both</label>
 
-      <select
-        value={selectedPort}
-        onChange={(e) => setSelectedPort(e.target.value)}
-        style={{ marginLeft: 12, minWidth: 260 }}
-        title="Serial Port"
-      >
-        {filteredPorts.map((p) => (
-          <option key={p} value={p}>{p}</option>
-        ))}
-      </select>
+      {target === "both" ? (
+  <>
+    <span style={{ marginRight: 6 }}>Fuselage Port:</span>
+    <select
+      value={selectedFuselagePort}
+      onChange={(e) => setSelectedFuselagePort(e.target.value)}
+      style={{ marginLeft: 0, minWidth: 180 }}
+      title="Fuselage Serial Port"
+    >
+      {filteredPorts.map((p) => (
+        <option key={p} value={p}>{p}</option>
+      ))}
+    </select>
+    <span style={{ margin: "0 6px" }}>Blade Port:</span>
+    <select
+      value={selectedBladePort}
+      onChange={(e) => setSelectedBladePort(e.target.value)}
+      style={{ marginLeft: 0, minWidth: 180 }}
+      title="Blade Serial Port"
+    >
+      {filteredPorts.map((p) => (
+        <option key={p} value={p}>{p}</option>
+      ))}
+    </select>
+  </>
+) : (
+  <select
+    value={selectedPort}
+    onChange={(e) => setSelectedPort(e.target.value)}
+    style={{ marginLeft: 12, minWidth: 260 }}
+    title="Serial Port"
+  >
+    {filteredPorts.map((p) => (
+      <option key={p} value={p}>{p}</option>
+    ))}
+  </select>
+)}
 
       <label style={{ marginLeft: 8, fontSize: 12 }}>
         <input

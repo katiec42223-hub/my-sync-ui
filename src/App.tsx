@@ -11,6 +11,7 @@ import type {
 } from "./components/ModelLayoutEditor/modelTypes";
 import type { Song } from "./SongListEditor";
 import { ShowEvent } from "./types";
+import { open } from "@tauri-apps/plugin-dialog";
 
 type Layout = {
   fixtures: Fixture[];
@@ -27,6 +28,20 @@ export default function App() {
   });
   const [songList, setSongList] = useState<Song[]>([]);
   const [events, setEvents] = useState<ShowEvent[]>([]);
+  const [soundtrack, setSoundtrack] = useState<string>("");
+
+  async function handleSelectSoundtrack() {
+    // Use Tauri's open dialog to pick a music file
+    const file = await open({
+      multiple: false,
+      filters: [
+        { name: "Audio", extensions: ["mp3", "wav", "ogg", "flac", "m4a"] },
+      ],
+    });
+    if (typeof file === "string") {
+      setSoundtrack(file);
+    }
+  }
 
   function getProjectData() {
     return {
@@ -38,6 +53,7 @@ export default function App() {
       layout,
       songs: songList,
       events,
+      soundtrack, // <-- add this line
     };
   }
 
@@ -77,6 +93,11 @@ export default function App() {
           if (Array.isArray(json.events)) {
             setEvents(json.events);
           }
+
+          // Restore soundtrack
+          if (typeof json.soundtrack === "string") {
+            setSoundtrack(json.soundtrack);
+          }
         }}
         onOpenModelEditor={() => setView("model-editor")}
       />
@@ -91,6 +112,20 @@ export default function App() {
             onSongListChange={setSongList}
             events={events}
             onEventsChange={setEvents}
+            onPlay={() => {
+              /* implement playback logic */
+            }}
+            onPause={() => {
+              /* implement pause logic */
+            }}
+            onRewind={() => {
+              /* implement rewind logic */
+            }}
+            onForward={() => {
+              /* implement forward logic */
+            }}
+            onSelectSoundtrack={handleSelectSoundtrack}
+            soundtrack={soundtrack}
           />
           <TimelineEditor />
         </>

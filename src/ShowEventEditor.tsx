@@ -339,169 +339,174 @@ export default function ShowEventsEditor({
           </div>
         </div>
 
-        {/* Assignment mode selectors (choose one) */}
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            marginBottom: 8,
-            alignItems: "center",
-          }}
-        >
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input
-              type="radio"
-              name="assignMode"
-              checked={assignMode === "fixtures"}
-              onChange={() => setAssignMode("fixtures")}
-            />
-            Assign Fixtures
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input
-              type="radio"
-              name="assignMode"
-              checked={assignMode === "channels"}
-              onChange={() => setAssignMode("channels")}
-            />
-            Assign Channels
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input
-              type="radio"
-              name="assignMode"
-              checked={assignMode === "groups"}
-              onChange={() => setAssignMode("groups")}
-            />
-            Assign Groups
-          </label>
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input
-              type="radio"
-              name="assignMode"
-              checked={assignMode === "none"}
-              onChange={() => setAssignMode("none")}
-            />
-            None
-          </label>
-        </div>
-
-        {/* Selection lists (multi-select) */}
-        <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
-          {/* Fixtures */}
-          <div style={{ flex: 1 }}>
-            <strong>Fixtures</strong>
+                        {/* Conditionally show assignment panels (hide for blade functions) */}
+        {!func.startsWith("blade:") && (
+          <>
+            {/* Assignment mode selectors (choose one) */}
             <div
               style={{
-                minHeight: 80,
-                border:
-                  assignMode === "fixtures"
-                    ? "1px solid #6fa8ff"
-                    : "1px dashed #3a3d42",
-                padding: 8,
-                marginTop: 6,
+                display: "flex",
+                gap: 12,
+                marginBottom: 8,
+                alignItems: "center",
               }}
             >
-              {availableFixtures.length === 0 ? (
-                <em style={{ color: "#999" }}>No fixtures available</em>
-              ) : null}
-              {availableFixtures.map((f) => (
-                <label
-                  key={f}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 8,
-                  }}
-                >
-                  <span>{f}</span>
-                  <input
-                    type="checkbox"
-                    disabled={assignMode !== "fixtures"}
-                    checked={fixtures.includes(f)}
-                    onChange={() => toggleSelect(setFixtures, f)}
-                  />
-                </label>
-              ))}
+              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <input
+                  type="radio"
+                  name="assignMode"
+                  checked={assignMode === "fixtures"}
+                  onChange={() => setAssignMode("fixtures")}
+                />
+                Assign Fixtures
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <input
+                  type="radio"
+                  name="assignMode"
+                  checked={assignMode === "channels"}
+                  onChange={() => setAssignMode("channels")}
+                />
+                Assign Channels
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <input
+                  type="radio"
+                  name="assignMode"
+                  checked={assignMode === "groups"}
+                  onChange={() => setAssignMode("groups")}
+                />
+                Assign Groups
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <input
+                  type="radio"
+                  name="assignMode"
+                  checked={assignMode === "none"}
+                  onChange={() => setAssignMode("none")}
+                />
+                None
+              </label>
             </div>
-          </div>
 
-          {/* Channels */}
-          <div style={{ flex: 1 }}>
-            <strong>Channels</strong>
-            <div
-              style={{
-                minHeight: 80,
-                border:
-                  assignMode === "channels"
-                    ? "1px solid #6fa8ff"
-                    : "1px dashed #3a3d42",
-                padding: 8,
-                marginTop: 6,
-              }}
-            >
-              {availableChannels.length === 0 ? (
-                <em style={{ color: "#999" }}>No channels available</em>
-              ) : null}
-              {availableChannels.map((c) => (
-                <label
-                  key={c}
+            {/* Selection lists (multi-select) */}
+            <div style={{ display: "flex", gap: 16, marginBottom: 12 }}>
+              {/* Fixtures */}
+              <div style={{ flex: 1 }}>
+                <strong>Fixtures</strong>
+                <div
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 8,
+                    minHeight: 80,
+                    border:
+                      assignMode === "fixtures"
+                        ? "1px solid #6fa8ff"
+                        : "1px dashed #3a3d42",
+                    padding: 8,
+                    marginTop: 6,
                   }}
                 >
-                  <span>{c}</span>
-                  <input
-                    type="checkbox"
-                    disabled={assignMode !== "channels"}
-                    checked={channels.includes(c)}
-                    onChange={() => toggleSelect(setChannels, c)}
-                  />
-                </label>
-              ))}
-            </div>
-          </div>
+                  {availableFixtures.length === 0 ? (
+                    <em style={{ color: "#999" }}>No fixtures available</em>
+                  ) : null}
+                  {availableFixtures.map((f) => (
+                    <label
+                      key={f}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 8,
+                      }}
+                    >
+                      <span>{f}</span>
+                      <input
+                        type="checkbox"
+                        disabled={assignMode !== "fixtures"}
+                        checked={fixtures.includes(f)}
+                        onChange={() => toggleSelect(setFixtures, f)}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
 
-          {/* Groups */}
-          <div style={{ flex: 1 }}>
-            <strong>Groups</strong>
-            <div
-              style={{
-                minHeight: 80,
-                border:
-                  assignMode === "groups"
-                    ? "1px solid #6fa8ff"
-                    : "1px dashed #3a3d42",
-                padding: 8,
-                marginTop: 6,
-              }}
-            >
-              {availableGroups.length === 0 ? (
-                <em style={{ color: "#999" }}>No groups available</em>
-              ) : null}
-              {availableGroups.map((g) => (
-                <label
-                  key={g}
+              {/* Channels */}
+              <div style={{ flex: 1 }}>
+                <strong>Channels</strong>
+                <div
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 8,
+                    minHeight: 80,
+                    border:
+                      assignMode === "channels"
+                        ? "1px solid #6fa8ff"
+                        : "1px dashed #3a3d42",
+                    padding: 8,
+                    marginTop: 6,
                   }}
                 >
-                  <span>{g}</span>
-                  <input
-                    type="checkbox"
-                    disabled={assignMode !== "groups"}
-                    checked={alignmentGroups.includes(g)}
-                    onChange={() => toggleSelect(setAlignmentGroups, g)}
-                  />
-                </label>
-              ))}
+                  {availableChannels.length === 0 ? (
+                    <em style={{ color: "#999" }}>No channels available</em>
+                  ) : null}
+                  {availableChannels.map((c) => (
+                    <label
+                      key={c}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 8,
+                      }}
+                    >
+                      <span>{c}</span>
+                      <input
+                        type="checkbox"
+                        disabled={assignMode !== "channels"}
+                        checked={channels.includes(c)}
+                        onChange={() => toggleSelect(setChannels, c)}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Groups */}
+              <div style={{ flex: 1 }}>
+                <strong>Groups</strong>
+                <div
+                  style={{
+                    minHeight: 80,
+                    border:
+                      assignMode === "groups"
+                        ? "1px solid #6fa8ff"
+                        : "1px dashed #3a3d42",
+                    padding: 8,
+                    marginTop: 6,
+                  }}
+                >
+                  {availableGroups.length === 0 ? (
+                    <em style={{ color: "#999" }}>No groups available</em>
+                  ) : null}
+                  {availableGroups.map((g) => (
+                    <label
+                      key={g}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 8,
+                      }}
+                    >
+                      <span>{g}</span>
+                      <input
+                        type="checkbox"
+                        disabled={assignMode !== "groups"}
+                        checked={alignmentGroups.includes(g)}
+                        onChange={() => toggleSelect(setAlignmentGroups, g)}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
 
         {/* Function-specific parameters area */}
         <FunctionParamPanel
@@ -510,7 +515,7 @@ export default function ShowEventsEditor({
           onChangeParam={upsertParam}
         />
 
-        {/* Generic key/value parameter editor */}
+        {/* Generic key/value parameter editor
         <div style={{ marginTop: 8 }}>
           <div
             style={{
@@ -519,8 +524,8 @@ export default function ShowEventsEditor({
               alignItems: "center",
             }}
           >
-            <strong>Parameters</strong>
-            <button onClick={addParam}>Add Param</button>
+            {/* <strong>Parameters</strong>
+            <button onClick={addParam}>Add Param</button> 
           </div>
           {params.length === 0 ? (
             <em style={{ color: "#999" }}>No parameters</em>
@@ -543,7 +548,7 @@ export default function ShowEventsEditor({
               </div>
             ))
           )}
-        </div>
+        </div> */}
 
         <hr style={{ margin: "12px 0" }} />
 
