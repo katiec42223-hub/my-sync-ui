@@ -29,12 +29,18 @@ export default function SongListEditor({
   const [desc, setDesc] = useState("");
   const [tempo, setTempo] = useState<number>(160);
 
+  // Inline editing state
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editDesc, setEditDesc] = useState("");
+  const [editTempo, setEditTempo] = useState<number>(160);
+
   // when opening, prefill the id with the auto-increment suggestion
   useEffect(() => {
     if (open) {
       setId(nextId);
       setDesc("");
       setTempo(160);
+      setEditingId(null);
     }
   }, [open, nextId]);
 
@@ -59,16 +65,42 @@ export default function SongListEditor({
     onChange(songs.filter((s) => s.id !== removeId));
   }
 
+  function startEdit(song: Song) {
+    setEditingId(song.id);
+    setEditDesc(song.description);
+    setEditTempo(song.tempo);
+  }
+
+  function saveEdit() {
+    if (editingId == null) return;
+    if (!editDesc.trim() || !Number.isFinite(editTempo) || editTempo <= 0) return;
+
+    onChange(
+      songs.map((s) =>
+        s.id === editingId ? { ...s, description: editDesc, tempo: editTempo } : s
+      )
+    );
+    setEditingId(null);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+  }
+
   //lets me use escape key to cancel
-    useEffect(() => {
+  useEffect(() => {
     function handleEsc(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        onClose();
+        if (editingId != null) {
+          cancelEdit();
+        } else {
+          onClose();
+        }
       }
     }
     window.addEventListener("keydown", handleEsc);
     return () => window.removeEventListener("keydown", handleEsc);
-  }, [onClose]);
+  }, [onClose, editingId]);
 
   if (!open) return null;
   return (
@@ -85,16 +117,50 @@ export default function SongListEditor({
             </tr>
           </thead>
           <tbody>
-            {songs.map((s) => (
-              <tr key={s.id}>
-                <td>{s.id}</td>
-                <td>{s.description}</td>
-                <td>{s.tempo}</td>
-                <td>
-                  <button onClick={() => removeSong(s.id)}>Delete</button>
-                </td>
-              </tr>
-            ))}
+            {songs.map((s) => {
+              const isEditing = editingId === s.id;
+              return (
+                <tr key={s.id}>
+                  <td>{s.id}</td>
+                  <td>
+                    {isEditing ? (
+                      <input
+                        value={editDesc}
+                        onChange={(e) => setEditDesc(e.target.value)}
+                        style={{ width: "100%" }}
+                      />
+                    ) : (
+                      s.description
+                    )}
+                  </td>
+                  <td>
+                    {isEditing ? (
+                      <input
+                        type="number"
+                        value={editTempo}
+                        onChange={(e) => setEditTempo(Number(e.target.value))}
+                        style={{ width: 80 }}
+                      />
+                    ) : (
+                      s.tempo
+                    )}
+                  </td>
+                  <td style={{ display: "flex", gap: 4 }}>
+                    {isEditing ? (
+                      <>
+                        <button onClick={saveEdit}>Save</button>
+                        <button onClick={cancelEdit}>Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <button onClick={() => startEdit(s)}>Edit</button>
+                        <button onClick={() => removeSong(s.id)}>Delete</button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
             <tr>
               <td>
                 <input

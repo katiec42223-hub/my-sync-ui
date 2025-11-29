@@ -1,0 +1,65 @@
+firmware/
+├── CMakeLists.txt
+├── blade
+│   ├── CMakeLists.txt
+│   ├── include
+│   │   └── app
+│   │       └── config.h
+│   ├── pio
+│   │   └── sk9822_parallel.pio
+│   └── src
+│       ├── isr_ir_index.c
+│       ├── live_stream.c
+│       ├── main.c
+│       └── player.c
+├── common
+│   ├── CMakeLists.txt
+│   ├── include
+│   │   └── common
+│   │       ├── flash_if.h
+│   │       ├── pins.h
+│   │       ├── proto.h
+│   │       ├── sk9822.h
+│   │       └── slice.h
+│   ├── src
+│   │   ├── flash
+│   │   │   └── flash_if.c
+│   │   ├── flash_if.c
+│   │   ├── proto
+│   │   │   └── proto.c
+│   │   ├── proto.c
+│   │   ├── sk9822
+│   │   │   └── frame.c
+│   │   ├── sk9822_frame.c
+│   │   ├── slice
+│   │   │   └── scheduler.c
+│   │   └── slice_scheduler.c
+│   └── third_party
+│       └── crc16_ccitt.c
+├── docs
+│   ├── CONTEXT.md
+│   ├── HW_PINS.md
+│   ├── PROTOCOL.md
+│   ├── SHOWFILE.md
+│   └── TIMING.md
+├── fuselage
+│   ├── CMakeLists.txt
+│   ├── include
+│   │   └── app
+│   │       └── config.h
+│   └── src
+│       ├── main.c
+│       ├── player.c
+│       └── ws2812_driver.c
+├── pico_sdk_import.cmake
+├── tests
+│   └── host
+│       ├── test_proto_parse.cpp
+│       └── test_slice_math.cpp
+└── tools
+    └── make_show
+        ├── README.md
+        ├── make_blade_show.py.md
+        └── make_fuse_show.py.md
+
+24 directories, 39 files
