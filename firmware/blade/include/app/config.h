@@ -1,0 +1,10 @@
+#ifndef APP_CONFIG_H
+#define APP_CONFIG_H
+
+#define PIXELS_PER_SEGMENT 36
+#define SEGMENTS_PER_BLADE 2
+#define BLADE_COUNT 2
+#define TARGET_RPM 1950
+#define SLICE_DEGREES 3
+
+#endif

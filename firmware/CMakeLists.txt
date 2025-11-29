@@ -1,0 +1,10 @@
+cmake_minimum_required(VERSION 3.20)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+include(pico_sdk_import.cmake)
+project(synchron-firmware C CXX ASM)
+set(PICO_BOARD pico)
+pico_sdk_init()
+
+add_subdirectory(common)
+add_subdirectory(blade)
+add_subdirectory(fuselage)
