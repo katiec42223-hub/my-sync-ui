@@ -1,6 +1,8 @@
 use std::sync::{Arc, Mutex};
 use tauri::{self, Manager, State};
 use serialport::{SerialPort, SerialPortType};
+mod protocol;
+use protocol::{CommandId, Frame, HelloResponse, ResponseId, VerifyResponse};
 
 struct SerialState {
   port: Option<Box<dyn SerialPort>>,
@@ -51,6 +53,121 @@ fn hello(state: State<Shared>) -> Result<String, String> {
   Ok(r#"{"fw":"dev","role":"unknown"}"#.to_string())
 }
 
+#[tauri::command]
+fn send_hello(state: State<Shared>) -> Result<HelloResponse, String> {
+  let mut s = state.lock().map_err(|_| "lock failed")?;
+  let port = s.port.as_mut().ok_or("not connected")?;
+
+  let frame = Frame::new(CommandId::Hello, vec![]);
+  let bytes = frame.to_bytes();
+  port.write_all(&bytes).map_err(|e| format!("write: {e}"))?;
+  port.flush().map_err(|e| format!("flush: {e}"))?;
+
+  let resp = Frame::from_reader(port.as_mut())?;
+  let resp_id = ResponseId::try_from(resp.cmd)?;
+  
+  if resp_id != ResponseId::Hello {
+    return Err(format!("expected Hello response, got {:?}", resp_id));
+  }
+
+  HelloResponse::from_payload(&resp.payload)
+}
+
+#[tauri::command]
+fn send_erase(state: State<Shared>) -> Result<(), String> {
+  let mut s = state.lock().map_err(|_| "lock failed")?;
+  let port = s.port.as_mut().ok_or("not connected")?;
+
+  let frame = Frame::new(CommandId::Erase, vec![]);
+  let bytes = frame.to_bytes();
+  port.write_all(&bytes).map_err(|e| format!("write: {e}"))?;
+  port.flush().map_err(|e| format!("flush: {e}"))?;
+
+  let resp = Frame::from_reader(port.as_mut())?;
+  let resp_id = ResponseId::try_from(resp.cmd)?;
+  
+  if resp_id != ResponseId::Ok {
+    return Err("erase failed".into());
+  }
+
+  Ok(())
+}
+
+#[tauri::command]
+fn send_write(state: State<Shared>, offset: u32, data: Vec<u8>) -> Result<(), String> {
+  let mut s = state.lock().map_err(|_| "lock failed")?;
+  let port = s.port.as_mut().ok_or("not connected")?;
+
+  // Payload: offset (4 bytes big-endian) + data
+  let mut payload = Vec::with_capacity(4 + data.len());
+  payload.push((offset >> 24) as u8);
+  payload.push((offset >> 16) as u8);
+  payload.push((offset >> 8) as u8);
+  payload.push((offset & 0xFF) as u8);
+  payload.extend_from_slice(&data);
+
+  let frame = Frame::new(CommandId::Write, payload);
+  let bytes = frame.to_bytes();
+  port.write_all(&bytes).map_err(|e| format!("write: {e}"))?;
+  port.flush().map_err(|e| format!("flush: {e}"))?;
+
+  let resp = Frame::from_reader(port.as_mut())?;
+  let resp_id = ResponseId::try_from(resp.cmd)?;
+  
+  if resp_id != ResponseId::Ok {
+    return Err("write failed".into());
+  }
+
+  Ok(())
+}
+
+#[tauri::command]
+fn send_verify(state: State<Shared>) -> Result<u16, String> {
+  let mut s = state.lock().map_err(|_| "lock failed")?;
+  let port = s.port.as_mut().ok_or("not connected")?;
+
+  let frame = Frame::new(CommandId::Verify, vec![]);
+  let bytes = frame.to_bytes();
+  port.write_all(&bytes).map_err(|e| format!("write: {e}"))?;
+  port.flush().map_err(|e| format!("flush: {e}"))?;
+
+  let resp = Frame::from_reader(port.as_mut())?;
+  let resp_id = ResponseId::try_from(resp.cmd)?;
+  
+  if resp_id != ResponseId::Verify {
+    return Err("verify failed".into());
+  }
+
+  let verify_resp = VerifyResponse::from_payload(&resp.payload)?;
+  Ok(verify_resp.crc)
+}
+
+#[tauri::command]
+fn send_start(state: State<Shared>) -> Result<(), String> {
+  let mut s = state.lock().map_err(|_| "lock failed")?;
+  let port = s.port.as_mut().ok_or("not connected")?;
+
+  let frame = Frame::new(CommandId::Start, vec![]);
+  let bytes = frame.to_bytes();
+  port.write_all(&bytes).map_err(|e| format!("write: {e}"))?;
+  port.flush().map_err(|e| format!("flush: {e}"))?;
+
+  let resp = Frame::from_reader(port.as_mut())?;
+  let resp_id = ResponseId::try_from(resp.cmd)?;
+  
+  if resp_id != ResponseId::Ok {
+    return Err("start failed".into());
+  }
+
+  Ok(())
+}
+
+#[tauri::command]
+fn get_connection_status(state: State<Shared>) -> Result<Option<String>, String> {
+  let s = state.lock().map_err(|_| "lock failed")?;
+  Ok(s.name.clone())
+}
+
 // placeholder that you’ll flesh out with ERASE/WRITE/VERIFY
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -72,8 +189,18 @@ fn main() {
     .plugin(tauri_plugin_fs::init())
     .manage(shared)
     .invoke_handler(tauri::generate_handler![
-      list_ports, connect, disconnect, hello, write_show_to_controllers
-    ])
+  list_ports,
+  connect,
+  disconnect,
+  hello,                    // keep existing
+  send_hello,               // new
+  send_erase,               // new
+  send_write,               // new
+  send_verify,              // new
+  send_start,               // new
+  get_connection_status,    // new
+  write_show_to_controllers // keep existing
+])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }

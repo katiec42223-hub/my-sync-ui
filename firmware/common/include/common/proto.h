@@ -12,7 +12,7 @@ typedef enum {
     CMD_WRITE = 0x11,
     CMD_VERIFY = 0x12,
     CMD_SET_META = 0x13,
-    CMD_START = 0x20,
+    CMD_START = 0x14,
     CMD_LIVE_FRAME = 0x21
 } proto_cmd_t;
 

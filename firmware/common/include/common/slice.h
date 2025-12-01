@@ -2,6 +2,7 @@
 #define SYNCHRON_SLICE_H
 
 #include <stdint.h>
+#include <stdbool.h>  // ADD THIS LINE
 
 #define SLICE_DEGREES 3
 #define SLICES_PER_REV (360 / SLICE_DEGREES)

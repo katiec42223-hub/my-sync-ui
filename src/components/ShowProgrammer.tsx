@@ -420,10 +420,103 @@ export default function ShowProgrammer({
 
       {/* Right: Preview / Program panel */}
       <div style={{ padding: 12 }}>
-        <h3>Preview & Program</h3>
-        <div
-          style={{
-            height: 320,
+        
+<h3>Preview & Program</h3>
+
+{/* USB Protocol Test Panel */}
+<div style={{ 
+  marginBottom: 16, 
+  padding: 12, 
+  background: "#1f2023", 
+  border: "1px solid #3a3d42", 
+  borderRadius: 8 
+}}>
+  <h4 style={{ margin: "0 0 8px 0", fontSize: 14 }}>USB Protocol Test</h4>
+  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+    <button 
+      onClick={async () => {
+        try {
+          const resp = await invoke<any>("send_hello");
+          setStatus(`HELLO: ${resp.target} v${resp.fw_version} (proto ${resp.proto_version})`);
+        } catch (e: any) {
+          setStatus(`HELLO failed: ${e}`);
+        }
+      }}
+      style={{ padding: "6px 12px" }}
+    >
+      HELLO
+    </button>
+    
+    <button 
+      onClick={async () => {
+        try {
+          await invoke("send_erase");
+          setStatus("ERASE ok");
+        } catch (e: any) {
+          setStatus(`ERASE failed: ${e}`);
+        }
+      }}
+      style={{ padding: "6px 12px" }}
+    >
+      ERASE
+    </button>
+    
+    <button 
+      onClick={async () => {
+        try {
+          const testData = new Uint8Array([0x01, 0x02, 0x03, 0x04]);
+          await invoke("send_write", { offset: 0, data: Array.from(testData) });
+          setStatus("WRITE ok (4 bytes @ 0)");
+        } catch (e: any) {
+          setStatus(`WRITE failed: ${e}`);
+        }
+      }}
+      style={{ padding: "6px 12px" }}
+    >
+      WRITE (test)
+    </button>
+    
+    <button 
+      onClick={async () => {
+        try {
+          const crc = await invoke<number>("send_verify");
+          setStatus(`VERIFY ok: CRC16 = 0x${crc.toString(16).padStart(4, '0')}`);
+        } catch (e: any) {
+          setStatus(`VERIFY failed: ${e}`);
+        }
+      }}
+      style={{ padding: "6px 12px" }}
+    >
+      VERIFY
+    </button>
+    
+    <button 
+      onClick={async () => {
+        try {
+          await invoke("send_start");
+          setStatus("START ok");
+        } catch (e: any) {
+          setStatus(`START failed: ${e}`);
+        }
+      }}
+      style={{ padding: "6px 12px" }}
+    >
+      START
+    </button>
+    
+    <span style={{ 
+      fontSize: 12, 
+      color: status.includes("failed") ? "#e74c3c" : "#2ecc71",
+      marginLeft: 8 
+    }}>
+      {status}
+    </span>
+  </div>
+</div>
+
+<div
+  style={{
+    height: 320,
             border: "1px dashed #3a3d42",
             borderRadius: 8,
             marginBottom: 12,
