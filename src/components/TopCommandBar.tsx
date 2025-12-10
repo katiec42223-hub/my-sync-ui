@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";            // Tauri v2
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { exit } from "@tauri-apps/plugin-process";
+import { VisualizerConfig } from "./ModelLayoutEditor/modelTypes";
 
 
 type Target = "blade" | "fuselage" | "both";
@@ -17,6 +18,8 @@ type Props = {
   onProjectSaved?: (path: string) => void;
   getProjectJson?: () => any;         // return current project JSON to save
   defaultJumpMs?: number;             // rewind/forward step (default 5000ms)
+  visualizerConfig?: VisualizerConfig;
+  onVisualizerConfigChange?: (config: VisualizerConfig) => void;
 };
 
 const usbRegex = /(usb(modem|serial)|cu\.usb|tty\.usb)/i;

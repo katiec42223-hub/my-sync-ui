@@ -2,46 +2,55 @@ import React, { useMemo, useState, useEffect, useRef } from "react";
 import FixturesTab from "./FixturesTab";
 import ChannelsTab from "./ChannelsTab";
 import AlignmentGroupsTab from "./AlignmentGroupsTab";
-import type { Fixture, ChannelChain, AlignmentGroup } from "./modelTypes";
-import { open, save, confirm} from "@tauri-apps/plugin-dialog";
+import type {
+  Fixture,
+  ChannelChain,
+  AlignmentGroup,
+  VisualizerConfig,
+} from "./modelTypes";
+import { open, save, confirm } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import VisualizerTab from "./VisualizerTab";
 
-  type Props = { 
-    onBack?: () => void;
-    fixtures?: Fixture[];
-    channels?: ChannelChain[];
-    alignmentGroups?: AlignmentGroup[];
-    onFixturesChange?: (f: Fixture[]) => void;
-    onChannelsChange?: (c: ChannelChain[]) => void;
-    onAlignmentGroupsChange?: (g: AlignmentGroup[]) => void;
-  };
+type Props = {
+  onBack?: () => void;
+  fixtures?: Fixture[];
+  channels?: ChannelChain[];
+  alignmentGroups?: AlignmentGroup[];
+  onFixturesChange?: (f: Fixture[]) => void;
+  onChannelsChange?: (c: ChannelChain[]) => void;
+  onAlignmentGroupsChange?: (g: AlignmentGroup[]) => void;
+  visualizerConfig: VisualizerConfig;
+  onVisualizerConfigChange: (config: VisualizerConfig) => void;
+};
 
-  const DIALOGS_ENABLED = false;
+const DIALOGS_ENABLED = false;
 
-export default function ModelLayoutEditor({ 
-  onBack, 
-  fixtures = [], 
-  channels = [], 
-  alignmentGroups = [], 
-  onFixturesChange = () => {}, 
-  onChannelsChange = () => {}, 
-  onAlignmentGroupsChange = () => {} }: Props) {
-    useEffect(() => {
-        console.log("[ModelLayoutEditor] mounted");
-        return () => console.log("[ModelLayoutEditor] unmounted");
-    }, []);
-  const [tab, setTab] = useState<"fixtures" | "channels" | "alignment">(
+export default function ModelLayoutEditor({
+  onBack,
+  fixtures = [],
+  channels = [],
+  alignmentGroups = [],
+  onFixturesChange = () => {},
+  onChannelsChange = () => {},
+  onAlignmentGroupsChange = () => {},
+  visualizerConfig,
+  onVisualizerConfigChange,
+}: Props) {
+  useEffect(() => {
+    console.log("[ModelLayoutEditor] mounted");
+    return () => console.log("[ModelLayoutEditor] unmounted");
+  }, []);
+  const [tab, setTab] = useState<"fixtures" | "channels" | "alignment" | "3D Layout">(
     "fixtures"
   );
-
 
   // const [fixtures, setFixtures] = useState<Fixture[]>([]); // brings fixture info here, to calculate pixelOffset (indexing)
   // const [channels, setChannels] = useState<ChannelChain[]>([]);
   // const [alignmentGroups, setAlignmentGroups] = useState<AlignmentGroup[]>([]);
   const [layoutPath, setLayoutPath] = useState<string | undefined>(undefined);
-  
+
   // mark dirty when fixtures change (we'll add channels/groups later)
-  
 
   // Build the JSON we save (channels/groups to be wired later)
   const layoutJson = useMemo(
@@ -49,7 +58,7 @@ export default function ModelLayoutEditor({
       layoutVersion: "0.0.1",
       modelName: "UNDEFINED_MODEL",
       fixtures: fixtures ?? [],
-      channels: channels ?? [], 
+      channels: channels ?? [],
       alignmentGroups: alignmentGroups ?? [],
     }),
     [fixtures, channels, alignmentGroups]
@@ -59,43 +68,47 @@ export default function ModelLayoutEditor({
 
   //FIX FOR SAVE...
 
-function downloadJson(filename = "layout.json") {
-  const blob = new Blob([JSON.stringify(layoutJson, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
+  function downloadJson(filename = "layout.json") {
+    const blob = new Blob([JSON.stringify(layoutJson, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
 
-function triggerWebOpen() {
-  fileInputRef.current?.click();
-}
+  function triggerWebOpen() {
+    fileInputRef.current?.click();
+  }
 
-function handleWebFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => {
-    try {
-      const json = JSON.parse(String(reader.result));
-      onFixturesChange(Array.isArray(json.fixtures) ? json.fixtures : []);
-      onChannelsChange(Array.isArray(json.channels) ? json.channels : []);
-      onAlignmentGroupsChange(Array.isArray(json.alignmentGroups) ? json.alignmentGroups : []);
-      setLayoutPath(undefined); // unknown path in web mode
-      console.log("[Load:web] success");
-    } catch (err) {
-      console.error("[Load:web] parse failed:", err);
-      alert("Could not parse that JSON file.");
-    }
-  };
-  reader.readAsText(file);
-  // reset input so picking the same file again still fires change
-  e.target.value = "";
-}
+  function handleWebFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const json = JSON.parse(String(reader.result));
+        onFixturesChange(Array.isArray(json.fixtures) ? json.fixtures : []);
+        onChannelsChange(Array.isArray(json.channels) ? json.channels : []);
+        onAlignmentGroupsChange(
+          Array.isArray(json.alignmentGroups) ? json.alignmentGroups : []
+        );
+        setLayoutPath(undefined); // unknown path in web mode
+        console.log("[Load:web] success");
+      } catch (err) {
+        console.error("[Load:web] parse failed:", err);
+        alert("Could not parse that JSON file.");
+      }
+    };
+    reader.readAsText(file);
+    // reset input so picking the same file again still fires change
+    e.target.value = "";
+  }
 
   async function handleSave(saveAs = false) {
     try {
@@ -115,8 +128,6 @@ function handleWebFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
     }
   }
 
-
-
   async function handleLoad() {
     try {
       const picked = await open({
@@ -129,7 +140,9 @@ function handleWebFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
       // minimal hydration (fixtures only for now)
       onFixturesChange(Array.isArray(json.fixtures) ? json.fixtures : []);
       onChannelsChange(Array.isArray(json.channels) ? json.channels : []);
-      onAlignmentGroupsChange(Array.isArray(json.alignmentGroups) ? json.alignmentGroups : []);
+      onAlignmentGroupsChange(
+        Array.isArray(json.alignmentGroups) ? json.alignmentGroups : []
+      );
       setLayoutPath(picked);
     } catch (e) {
       console.error("ModelLayoutEditor load failed:", e);
@@ -137,40 +150,43 @@ function handleWebFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
   }
 
   async function handleBack() {
-     
-     onBack?.();
-   }
+    onBack?.();
+  }
 
-   function renameFixtureId(oldId: string, newId: string) {
-  if (!newId || oldId === newId) return;
+  function renameFixtureId(oldId: string, newId: string) {
+    if (!newId || oldId === newId) return;
 
-  // 1) fixtures
-  const nextFixtures = fixtures.map(f => (f.id === oldId ? { ...f, id: newId } : f));
-  onFixturesChange(nextFixtures);
+    // 1) fixtures
+    const nextFixtures = fixtures.map((f) =>
+      f.id === oldId ? { ...f, id: newId } : f
+    );
+    onFixturesChange(nextFixtures);
 
-  // 2) channels: update fixtureOrder references
-  const nextChannels = channels.map(ch => ({
-    ...ch,
-    fixtureOrder: (ch.fixtureOrder ?? []).map(id => (id === oldId ? newId : id)),
-  }));
-  onChannelsChange(nextChannels);
-}
-
+    // 2) channels: update fixtureOrder references
+    const nextChannels = channels.map((ch) => ({
+      ...ch,
+      fixtureOrder: (ch.fixtureOrder ?? []).map((id) =>
+        id === oldId ? newId : id
+      ),
+    }));
+    onChannelsChange(nextChannels);
+  }
 
   return (
     <div style={containerStyle}>
       <input
-  ref={fileInputRef}
-  type="file"
-  accept=".json,application/json"
-  style={{ display: "none" }}
-  onChange={handleWebFilePicked}
-/>
+        ref={fileInputRef}
+        type="file"
+        accept=".json,application/json"
+        style={{ display: "none" }}
+        onChange={handleWebFilePicked}
+      />
 
-     
-     <div style={headerRowStyle}>
+      <div style={headerRowStyle}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <button onClick={handleBack} title="Back to main">← Back</button>
+          <button onClick={handleBack} title="Back to main">
+            ← Back
+          </button>
           <h1 style={headerStyle}>Model Layout Editor</h1>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -200,29 +216,45 @@ function handleWebFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
         >
           Alignment Groups
         </button>
+        <button
+          style={tab === "3D Layout" ? activeTabStyle : tabBtnStyle}
+          onClick={() => setTab("3D Layout")}
+        >
+          3D Setup
+        </button>
       </div>
 
       {/* Tab Content */}
       <div style={contentStyle}>
         {tab === "fixtures" && (
-             <FixturesTab
-             fixtures={fixtures}
-             onFixturesChange={onFixturesChange} 
-             onRenameFixtureId={renameFixtureId}
-             />)}
+          <FixturesTab
+            fixtures={fixtures}
+            onFixturesChange={onFixturesChange}
+            onRenameFixtureId={renameFixtureId}
+          />
+        )}
         {tab === "channels" && (
-            <ChannelsTab
+          <ChannelsTab
             fixtures={fixtures}
             channels={channels}
-            onFixturesChange={onFixturesChange} 
+            onFixturesChange={onFixturesChange}
             onChannelsChange={onChannelsChange}
-            />)}
+          />
+        )}
         {tab === "alignment" && (
-        <AlignmentGroupsTab
-          fixtures={fixtures}
-          groups={alignmentGroups}
-          onGroupsChange={onAlignmentGroupsChange}
-      />)}
+          <AlignmentGroupsTab
+            fixtures={fixtures}
+            groups={alignmentGroups}
+            onGroupsChange={onAlignmentGroupsChange}
+          />
+        )}
+        {tab === "3D Layout" && (
+          <VisualizerTab
+            fixtures={fixtures}
+            config={visualizerConfig}
+            onChange={onVisualizerConfigChange}
+          />
+        )}
       </div>
     </div>
   );
@@ -239,11 +271,11 @@ const headerStyle: React.CSSProperties = {
 };
 
 const headerRowStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 16,
-}
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  marginBottom: 16,
+};
 
 const tabBarStyle: React.CSSProperties = {
   display: "flex",

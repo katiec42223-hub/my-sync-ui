@@ -8,10 +8,12 @@ import type {
   Fixture,
   ChannelChain,
   AlignmentGroup,
+  VisualizerConfig,
 } from "./components/ModelLayoutEditor/modelTypes";
 import type { Song } from "./SongListEditor";
 import { ShowEvent } from "./types";
 import { open } from "@tauri-apps/plugin-dialog";
+import Visualizer3D from "./components/Visualizer3D/Visualizer3D";
 
 type Layout = {
   fixtures: Fixture[];
@@ -29,6 +31,11 @@ export default function App() {
   const [songList, setSongList] = useState<Song[]>([]);
   const [events, setEvents] = useState<ShowEvent[]>([]);
   const [soundtrack, setSoundtrack] = useState<string>("");
+
+  const [visualizerConfig, setVisualizerConfig] = useState<VisualizerConfig>({
+    fixtures: [],
+    camera: { position: [3, 2, 3], target: [0, 0, 0] },
+  });
 
   async function handleSelectSoundtrack() {
     // Use Tauri's open dialog to pick a music file
@@ -50,14 +57,15 @@ export default function App() {
         created: new Date().toISOString(),
         appName: "SYNCHRON",
       },
-      layout,
+      layout: {
+        ...layout,
+        visualizerConfig, // CORRECT - inside layout object
+      },
       songs: songList,
       events,
-      soundtrack, // <-- add this line
+      soundtrack,
     };
   }
-
-  
 
   // Auto-load last project on mount
   useEffect(() => {
@@ -79,6 +87,10 @@ export default function App() {
               channels: json.layout.channels || [],
               alignmentGroups: json.layout.alignmentGroups || [],
             });
+            // Restore visualizer config
+            if (json.layout.visualizerConfig) {
+              setVisualizerConfig(json.layout.visualizerConfig);
+            }
           }
           if (Array.isArray(json.songs)) setSongList(json.songs);
           if (Array.isArray(json.events)) setEvents(json.events);
@@ -119,6 +131,15 @@ export default function App() {
               channels: json.layout.channels || [],
               alignmentGroups: json.layout.alignmentGroups || [],
             });
+            // Restore visualizer config
+            if (json.layout.visualizerConfig) {
+              setVisualizerConfig(json.layout.visualizerConfig);
+            }
+          }
+
+          // Restore visualizer config
+          if (json.layout.visualizerConfig) {
+            setVisualizerConfig(json.layout.visualizerConfig);
           }
 
           // Restore songs
@@ -166,6 +187,7 @@ export default function App() {
             }}
             onSelectSoundtrack={handleSelectSoundtrack}
             soundtrack={soundtrack}
+            visualizerConfig={visualizerConfig}
           />
           <TimelineEditor />
         </>
@@ -181,6 +203,8 @@ export default function App() {
             setLayout((p) => ({ ...p, alignmentGroups: g }))
           }
           onBack={() => setView("main")}
+          visualizerConfig={visualizerConfig}
+          onVisualizerConfigChange={setVisualizerConfig}
         />
       )}
       {/* the rest of your UI goes here (timeline, previews, etc.) */}

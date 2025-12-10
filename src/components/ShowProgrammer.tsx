@@ -11,6 +11,8 @@ import type {
   AlignmentGroup,
 } from "./ModelLayoutEditor/modelTypes";
 import { ShowEvent } from "../types";
+import  Visualizer3D  from "./Visualizer3D/Visualizer3D";
+import type { VisualizerConfig } from "./ModelLayoutEditor/modelTypes";
 
 type Timetable = {
   version: string;
@@ -41,6 +43,7 @@ export default function ShowProgrammer({
   onForward,
   onSelectSoundtrack,
   soundtrack,
+  visualizerConfig,
 }: {
   fixtures?: Fixture[];
   channels?: ChannelChain[];
@@ -55,6 +58,7 @@ export default function ShowProgrammer({
   onForward?: (ms?: number) => void;
   onSelectSoundtrack?: () => void;
   soundtrack?: string;
+  visualizerConfig?: VisualizerConfig;
 }) {
   const [tt, setTt] = useState<Timetable | null>(null);
   const [status, setStatus] = useState<string>("idle");
@@ -221,6 +225,24 @@ export default function ShowProgrammer({
     if (deltaMs < 0) onRewind?.(-deltaMs);
     else onForward?.(deltaMs);
   }
+
+  function computePixelColors(
+  event: ShowEvent | null,
+  tMs: number,
+  tempo: number
+): Map<string, string[]> {
+  const result = new Map<string, string[]>();
+  if (!event) return result;
+
+  // TODO: Based on event.func, compute RGB for each pixel
+  // For now, return demo pattern
+  visualizerConfig?.fixtures.forEach((fix) => {
+    const colors = new Array(100).fill("#ffffff");
+    result.set(fix.fixtureId, colors);
+  });
+
+  return result;
+}
 
   // Animation loop
   React.useEffect(() => {
@@ -513,6 +535,51 @@ export default function ShowProgrammer({
     </span>
   </div>
 </div>
+
+{/* 3D Visualizer */}
+<div style={{ 
+  height: 400, 
+  background: "#000", 
+  borderRadius: 8, 
+  marginBottom: 16, 
+  position: "relative",
+  border: "1px solid #3a3d42"
+}}>
+  {visualizerConfig && visualizerConfig.fixtures.length > 0 ? (
+    <Visualizer3D
+      config={visualizerConfig.fixtures}
+      fixtures={fixtures}
+      pixelColors={computePixelColors(previewEvent, playheadMs, tempoBpm)}
+    />
+  ) : (
+    <div style={{ 
+      display: "grid", 
+      placeItems: "center", 
+      height: "100%", 
+      color: "#666",
+      fontSize: 14
+    }}>
+      Configure fixtures in Model Configurator → 3D Layout tab
+    </div>
+  )}
+  
+  {/* Optional: show playhead time overlay */}
+  <div style={{
+    position: "absolute",
+    top: 8,
+    left: 8,
+    background: "rgba(0,0,0,0.7)",
+    padding: "4px 8px",
+    borderRadius: 4,
+    fontSize: 12,
+    color: "#bbb"
+  }}>
+    t={Math.round(playheadMs)}ms • {tempoBpm} BPM
+  </div>
+</div>
+
+{/* Existing 2D Blade Preview label */}
+<h4 style={{ marginTop: 0, marginBottom: 8, fontSize: 14 }}>2D Blade Preview</h4>
 
 <div
   style={{
