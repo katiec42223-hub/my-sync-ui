@@ -31,24 +31,23 @@ type Timetable = {
 // };
 
 function _resolveColorPattern(params: any, descriptor: any): string[] {
-  const raw =
-    params?.colorPattern ?? descriptor?.defaultParams?.colorPattern;
-  if (!raw) return ["#ffffff"];
-  if (Array.isArray(raw)) return raw;
-  if (typeof raw === "string") {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
-    } catch {
-      return raw
-        .replace(/^\[|\]$/g, "")
-        .split(",")
-        .map((s) => s.trim().replace(/^"|"$/g, ""))
-        .filter(Boolean);
-    }
-  }
-  return ["#ffffff"];
-}
+      const raw =
+        params?.colorPattern ?? descriptor?.defaultParams?.colorPattern;
+      if (!raw) return ["#ffffff"];
+      if (Array.isArray(raw)) return raw;
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed;
+        } catch {
+          return raw
+            .replace(/^\[|\]$/g, "")
+            .split(",")
+            .map((s) => s.trim().replace(/^"|"$/g, ""))
+            .filter(Boolean);
+        }
+      }
+      return ["#ffffff"];
 
 function computePixelColorsForEvent(
   ev: ShowEvent | null,
@@ -140,7 +139,6 @@ function computePixelColorsForAll(
 
   return merged;
 }
-
 
 export default function ShowProgrammer({
   fixtures = [],
@@ -339,127 +337,16 @@ export default function ShowProgrammer({
     else onForward?.(deltaMs);
   }
 
-  const playbackHandlers = {
-  onPlay: handlePlay,
-  onPause: handlePause,
-  onRewind: (ms?: number) => handleSeek(-(ms ?? 5000)),
-  onForward: (ms?: number) => handleSeek(ms ?? 5000),
-};
+  function computePixelColors(
+    event: ShowEvent | null,
+    tMs: number,
+    tempo: number
+  ): Map<string, string[]> {
+    
+    }
 
-//   function computePixelColors(
-//     event: ShowEvent | null,
-//     tMs: number,
-//     tempo: number
-//   ): Map<string, string[]> {
-//     function _resolveColorPattern(params: any, descriptor: any): string[] {
-//       const raw =
-//         params?.colorPattern ?? descriptor?.defaultParams?.colorPattern;
-//       if (!raw) return ["#ffffff"];
-//       if (Array.isArray(raw)) return raw;
-//       if (typeof raw === "string") {
-//         try {
-//           const parsed = JSON.parse(raw);
-//           if (Array.isArray(parsed)) return parsed;
-//         } catch {
-//           return raw
-//             .replace(/^\[|\]$/g, "")
-//             .split(",")
-//             .map((s) => s.trim().replace(/^"|"$/g, ""))
-//             .filter(Boolean);
-//         }
-//       }
-//       return ["#ffffff"];
-//     }function computePixelColorsForEvent(
-//   ev: ShowEvent | null,
-//   tMs: number,
-//   tempo: number,
-//   fixturesList: Fixture[] | null | undefined,
-//   getDesc: typeof getFunctionDescriptor
-// ): Map<string, string[]> {
-//   const out = new Map<string, string[]>();
-//   if (!ev) return out;
+   // Function to compute pixel colors for all events
 
-//   const fuseFunc = ev.fuselage?.func ?? ev.func;
-//   if (!fuseFunc) return out;
-
-//   const desc = getDesc(fuseFunc);
-//   if (!desc) return out;
-
-//   const fixtureIds = ev.fuselage?.assignments?.fixtureIds ?? [];
-//   const fixtureMap: Record<string, any> = {};
-//   const fixturesArr = fixturesList ?? [];
-//   fixturesArr.forEach((f) => (fixtureMap[f.id] = f));
-
-//   let timeline: any[] = [];
-//   try {
-//     timeline =
-//       desc.buildTimeline({
-//         params: ev.fuselage?.params ?? {},
-//         tempoBpm: tempo,
-//         durationMs: ev.durationMs,
-//         fixtureIds,
-//         channelIds: ev.fuselage?.assignments?.channelIds ?? [],
-//         groupIds: ev.fuselage?.assignments?.groupIds ?? [],
-//         fixtures: fixtureMap,
-//       }) || [];
-//   } catch (err) {
-//     console.error("buildTimeline error for", fuseFunc, err);
-//     return out;
-//   }
-
-//   if (!Array.isArray(timeline) || timeline.length === 0) return out;
-
-//   let current = timeline.find((frame: any, idx: number) =>
-//     frame.timeMs <= tMs && (timeline[idx + 1]?.timeMs ?? Infinity) > tMs
-//   );
-//   if (!current) current = timeline[timeline.length - 1];
-
-//   const colorPattern = _resolveColorPattern(ev.fuselage?.params ?? {}, desc);
-
-//   (current.pixelsOn ?? []).forEach((fixtureData: any) => {
-//     const fx = fixtureMap[fixtureData.fixtureId];
-//     if (!fx) return;
-//     const pixelCount = fx.pixelCount ?? 0;
-//     const colors = new Array(Math.max(0, pixelCount)).fill("#000000");
-//     (fixtureData.pixelIndices ?? []).forEach((pixelIdx: number, idx: number) => {
-//       if (pixelIdx < 0 || pixelIdx >= pixelCount) return;
-//       const color = colorPattern[idx % colorPattern.length] ?? "#ffffff";
-//       colors[pixelIdx] = color;
-//     });
-//     out.set(fixtureData.fixtureId, colors);
-//   });
-
-//   return out;
-// }
-
-//    // Function to compute pixel colors for all events
-// function computePixelColorsForAll(
-//   eventsList: ShowEvent[] | null | undefined,
-//   tMs: number,
-//   tempo: number,
-//   fixturesList: Fixture[] | null | undefined,
-//   getDesc: typeof getFunctionDescriptor
-// ): Map<string, string[]> {
-//   const merged = new Map<string, string[]>();
-//   const evs = eventsList ?? [];
-//   if (evs.length === 0) return merged;
-
-//   for (const ev of evs) {
-//     const map = computePixelColorsForEvent(ev, tMs, tempo, fixturesList, getDesc);
-//     for (const [fid, colors] of map.entries()) {
-//       if (!merged.has(fid)) {
-//         merged.set(fid, colors.slice());
-//         continue;
-//       }
-//       const target = merged.get(fid)!;
-//       for (let i = 0; i < colors.length && i < target.length; i++) {
-//         if (colors[i] && colors[i] !== "#000000") target[i] = colors[i];
-//       }
-//     }
-//   }
-
-//   return merged;
-// }
 
   
 
@@ -1078,4 +965,4 @@ export default function ShowProgrammer({
       </div>
     </div>
   );
-}
+  }

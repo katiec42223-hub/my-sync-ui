@@ -11,8 +11,9 @@ import type {
   AlignmentGroup,
 } from "./ModelLayoutEditor/modelTypes";
 import { ShowEvent } from "../types";
-import  Visualizer3D  from "./Visualizer3D/Visualizer3D";
+import Visualizer3D from "./Visualizer3D/Visualizer3D";
 import type { VisualizerConfig } from "./ModelLayoutEditor/modelTypes";
+import { getFunctionDescriptor } from "../functions/registry";
 
 type Timetable = {
   version: string;
@@ -29,6 +30,117 @@ type Timetable = {
 //   payload?: any;
 // };
 
+function _resolveColorPattern(params: any, descriptor: any): string[] {
+      const raw =
+        params?.colorPattern ?? descriptor?.defaultParams?.colorPattern;
+      if (!raw) return ["#ffffff"];
+      if (Array.isArray(raw)) return raw;
+      if (typeof raw === "string") {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) return parsed;
+        } catch {
+          return raw
+            .replace(/^\[|\]$/g, "")
+            .split(",")
+            .map((s) => s.trim().replace(/^"|"$/g, ""))
+            .filter(Boolean);
+        }
+      }
+      return ["#ffffff"];
+    }
+
+function computePixelColorsForEvent(
+  ev: ShowEvent | null,
+  tMs: number,
+  tempo: number,
+  fixturesList: Fixture[] | null | undefined,
+  getDesc: typeof getFunctionDescriptor
+): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  if (!ev) return out;
+
+  const fuseFunc = ev.fuselage?.func ?? ev.func;
+  if (!fuseFunc) return out;
+
+  const desc = getDesc(fuseFunc);
+  if (!desc) return out;
+
+  const fixtureIds = ev.fuselage?.assignments?.fixtureIds ?? [];
+  const fixtureMap: Record<string, any> = {};
+  const fixturesArr = fixturesList ?? [];
+  fixturesArr.forEach((f) => (fixtureMap[f.id] = f));
+
+  let timeline: any[] = [];
+  try {
+    timeline =
+      desc.buildTimeline({
+        params: ev.fuselage?.params ?? {},
+        tempoBpm: tempo,
+        durationMs: ev.durationMs,
+        fixtureIds,
+        channelIds: ev.fuselage?.assignments?.channelIds ?? [],
+        groupIds: ev.fuselage?.assignments?.groupIds ?? [],
+        fixtures: fixtureMap,
+      }) || [];
+  } catch (err) {
+    console.error("buildTimeline error for", fuseFunc, err);
+    return out;
+  }
+
+  if (!Array.isArray(timeline) || timeline.length === 0) return out;
+
+  let current = timeline.find((frame: any, idx: number) =>
+    frame.timeMs <= tMs && (timeline[idx + 1]?.timeMs ?? Infinity) > tMs
+  );
+  if (!current) current = timeline[timeline.length - 1];
+
+  const colorPattern = _resolveColorPattern(ev.fuselage?.params ?? {}, desc);
+
+  (current.pixelsOn ?? []).forEach((fixtureData: any) => {
+    const fx = fixtureMap[fixtureData.fixtureId];
+    if (!fx) return;
+    const pixelCount = fx.pixelCount ?? 0;
+    const colors = new Array(Math.max(0, pixelCount)).fill("#000000");
+    (fixtureData.pixelIndices ?? []).forEach((pixelIdx: number, idx: number) => {
+      if (pixelIdx < 0 || pixelIdx >= pixelCount) return;
+      const color = colorPattern[pixelIdx % colorPattern.length] ?? "#ffffff";
+      colors[pixelIdx] = color;
+    });
+    out.set(fixtureData.fixtureId, colors);
+  });
+
+  return out;
+}
+
+function computePixelColorsForAll(
+  eventsList: ShowEvent[] | null | undefined,
+  tMs: number,
+  tempo: number,
+  fixturesList: Fixture[] | null | undefined,
+  getDesc: typeof getFunctionDescriptor
+): Map<string, string[]> {
+  const merged = new Map<string, string[]>();
+  const evs = eventsList ?? [];
+  if (evs.length === 0) return merged;
+
+  for (const ev of evs) {
+    const map = computePixelColorsForEvent(ev, tMs, tempo, fixturesList, getDesc);
+    for (const [fid, colors] of map.entries()) {
+      if (!merged.has(fid)) {
+        merged.set(fid, colors.slice());
+        continue;
+      }
+      const target = merged.get(fid)!;
+      for (let i = 0; i < colors.length && i < target.length; i++) {
+        if (colors[i] && colors[i] !== "#000000") target[i] = colors[i];
+      }
+    }
+  }
+
+  return merged;
+}
+
 export default function ShowProgrammer({
   fixtures = [],
   channels = [],
@@ -44,6 +156,8 @@ export default function ShowProgrammer({
   onSelectSoundtrack,
   soundtrack,
   visualizerConfig,
+  playing,
+  timeMs,
 }: {
   fixtures?: Fixture[];
   channels?: ChannelChain[];
@@ -59,6 +173,9 @@ export default function ShowProgrammer({
   onSelectSoundtrack?: () => void;
   soundtrack?: string;
   visualizerConfig?: VisualizerConfig;
+  playing?: boolean;
+  timeMs?: number;
+ 
 }) {
   const [tt, setTt] = useState<Timetable | null>(null);
   const [status, setStatus] = useState<string>("idle");
@@ -204,67 +321,80 @@ export default function ShowProgrammer({
     return song?.tempo ?? 120;
   }, [previewEvent, songList]);
 
-  // Playback state
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [playheadMs, setPlayheadMs] = useState(0);
-  const rafRef = React.useRef<number | null>(null);
-  const lastTsRef = React.useRef<number | null>(null);
+  // // Playback state
+  // const [isPlaying, setIsPlaying] = useState(false);
+  // const [playheadMs, setPlayheadMs] = useState(0);
+  // const rafRef = React.useRef<number | null>(null);
+  // const lastTsRef = React.useRef<number | null>(null);
 
-  // Controls hook into left-bottom bar callbacks if provided, but drive local state too
-  function handlePlay() {
-    setIsPlaying(true);
-    onPlay?.();
-  }
-  function handlePause() {
-    setIsPlaying(false);
-    lastTsRef.current = null;
-    onPause?.();
-  }
-  function handleSeek(deltaMs: number) {
-    setPlayheadMs((p) => Math.max(0, p + deltaMs));
-    if (deltaMs < 0) onRewind?.(-deltaMs);
-    else onForward?.(deltaMs);
-  }
+  // // Controls hook into left-bottom bar callbacks if provided, but drive local state too
+  // function handlePlay() {
+  //   setIsPlaying(true);
+  //   onPlay?.();
+  // }
+  // function handlePause() {
+  //   setIsPlaying(false);
+  //   lastTsRef.current = null;
+  //   onPause?.();
+  // }
+  // function handleSeek(deltaMs: number) {
+  //   setPlayheadMs((p) => Math.max(0, p + deltaMs));
+  //   if (deltaMs < 0) onRewind?.(-deltaMs);
+  //   else onForward?.(deltaMs);
+  // }
 
-  function computePixelColors(
-  event: ShowEvent | null,
-  tMs: number,
-  tempo: number
-): Map<string, string[]> {
-  const result = new Map<string, string[]>();
-  if (!event) return result;
 
-  // TODO: Based on event.func, compute RGB for each pixel
-  // For now, return demo pattern
-  visualizerConfig?.fixtures.forEach((fix) => {
-    const colors = new Array(100).fill("#ffffff");
-    result.set(fix.fixtureId, colors);
-  });
 
-  return result;
-}
+   // Function to compute pixel colors for all events
+
+
+  
 
   // Animation loop
-  React.useEffect(() => {
-    if (!isPlaying) {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-      return;
-    }
-    function tick(ts: number) {
-      if (lastTsRef.current == null) lastTsRef.current = ts;
-      const dt = ts - lastTsRef.current;
-      lastTsRef.current = ts;
-      setPlayheadMs((p) => p + dt);
-      rafRef.current = requestAnimationFrame(tick);
-    }
+  // Animation loop (driven by 'playing' prop)
+  // Local animation state (driven by parent's playing/timeMs props)
+const [localTimeMs, setLocalTimeMs] = useState(timeMs ?? 0);
+const rafRef = useRef<number | null>(null);
+const lastTsRef = useRef<number | null>(null);
+useEffect(() => {
+  if (!playing) {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    lastTsRef.current = null;
+    return;
+  }
+  
+  function tick(ts: number) {
+    if (lastTsRef.current == null) lastTsRef.current = ts;
+    const dt = ts - lastTsRef.current;
+    lastTsRef.current = ts;
+    
+    // Update local state for smooth animation
+    setLocalTimeMs((p) => p + dt);
+    
+    // Update parent state so TopCommandBar timecode updates
+    onForward?.(dt);
+    
     rafRef.current = requestAnimationFrame(tick);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-      lastTsRef.current = null;
-    };
-  }, [isPlaying]);
+  }
+  
+  rafRef.current = requestAnimationFrame(tick);
+  
+  return () => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    lastTsRef.current = null;
+  };
+}, [playing, onForward]);
+
+// Sync external timeMs to localTimeMs (for rewind/forward)
+useEffect(() => {
+  if (typeof timeMs === "number" && Math.abs(timeMs - localTimeMs) > 1) {
+    setLocalTimeMs(timeMs);
+  }
+}, [timeMs, localTimeMs]);
+
+
 
   // Compute current base angle like bladeLine.ts
   function computeBaseAngle(params: any, tempo: number, tMs: number): number {
@@ -402,35 +532,7 @@ export default function ShowProgrammer({
             ))}
           </tbody>
         </table>
-        <div
-          style={{
-            position: "absolute",
-            left: 0,
-            bottom: 0,
-            width: "380px",
-            background: "#23272a",
-            borderTop: "1px solid #2f3136",
-            padding: "8px 12px",
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            zIndex: 10,
-          }}
-        >
-          <button onClick={handlePlay}>Play</button>
-          <button onClick={handlePause}>Pause</button>
-          <button onClick={() => handleSeek(-5000)}>⟲</button>
-          <button onClick={() => handleSeek(5000)}>⟶</button>
-          <span style={{ marginLeft: 8, fontVariantNumeric: "tabular-nums" }}>
-            {/* timecode here */}
-          </span>
-          <button style={{ marginLeft: "auto" }} onClick={onSelectSoundtrack}>
-            Select Soundtrack
-          </button>
-          {soundtrack && (
-            <span style={{ fontSize: 12, color: "#bbb" }}>{soundtrack}</span>
-          )}
-        </div>
+        
         {/* [ADD] Song List modal */}
         <SongListEditor
           open={songPanelOpen}
@@ -442,148 +544,181 @@ export default function ShowProgrammer({
 
       {/* Right: Preview / Program panel */}
       <div style={{ padding: 12 }}>
-        
-<h3>Preview & Program</h3>
+        <h3>Preview & Program</h3>
 
-{/* USB Protocol Test Panel */}
-<div style={{ 
-  marginBottom: 16, 
-  padding: 12, 
-  background: "#1f2023", 
-  border: "1px solid #3a3d42", 
-  borderRadius: 8 
-}}>
-  <h4 style={{ margin: "0 0 8px 0", fontSize: 14 }}>USB Protocol Test</h4>
-  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-    <button 
-      onClick={async () => {
-        try {
-          const resp = await invoke<any>("send_hello");
-          setStatus(`HELLO: ${resp.target} v${resp.fw_version} (proto ${resp.proto_version})`);
-        } catch (e: any) {
-          setStatus(`HELLO failed: ${e}`);
-        }
-      }}
-      style={{ padding: "6px 12px" }}
-    >
-      HELLO
-    </button>
-    
-    <button 
-      onClick={async () => {
-        try {
-          await invoke("send_erase");
-          setStatus("ERASE ok");
-        } catch (e: any) {
-          setStatus(`ERASE failed: ${e}`);
-        }
-      }}
-      style={{ padding: "6px 12px" }}
-    >
-      ERASE
-    </button>
-    
-    <button 
-      onClick={async () => {
-        try {
-          const testData = new Uint8Array([0x01, 0x02, 0x03, 0x04]);
-          await invoke("send_write", { offset: 0, data: Array.from(testData) });
-          setStatus("WRITE ok (4 bytes @ 0)");
-        } catch (e: any) {
-          setStatus(`WRITE failed: ${e}`);
-        }
-      }}
-      style={{ padding: "6px 12px" }}
-    >
-      WRITE (test)
-    </button>
-    
-    <button 
-      onClick={async () => {
-        try {
-          const crc = await invoke<number>("send_verify");
-          setStatus(`VERIFY ok: CRC16 = 0x${crc.toString(16).padStart(4, '0')}`);
-        } catch (e: any) {
-          setStatus(`VERIFY failed: ${e}`);
-        }
-      }}
-      style={{ padding: "6px 12px" }}
-    >
-      VERIFY
-    </button>
-    
-    <button 
-      onClick={async () => {
-        try {
-          await invoke("send_start");
-          setStatus("START ok");
-        } catch (e: any) {
-          setStatus(`START failed: ${e}`);
-        }
-      }}
-      style={{ padding: "6px 12px" }}
-    >
-      START
-    </button>
-    
-    <span style={{ 
-      fontSize: 12, 
-      color: status.includes("failed") ? "#e74c3c" : "#2ecc71",
-      marginLeft: 8 
-    }}>
-      {status}
-    </span>
-  </div>
-</div>
+        {/* USB Protocol Test Panel */}
+        <div
+          style={{
+            marginBottom: 16,
+            padding: 12,
+            background: "#1f2023",
+            border: "1px solid #3a3d42",
+            borderRadius: 8,
+          }}
+        >
+          <h4 style={{ margin: "0 0 8px 0", fontSize: 14 }}>
+            USB Protocol Test
+          </h4>
+          <div
+            style={{
+              display: "flex",
+              gap: 8,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
+            <button
+              onClick={async () => {
+                try {
+                  const resp = await invoke<any>("send_hello");
+                  setStatus(
+                    `HELLO: ${resp.target} v${resp.fw_version} (proto ${resp.proto_version})`
+                  );
+                } catch (e: any) {
+                  setStatus(`HELLO failed: ${e}`);
+                }
+              }}
+              style={{ padding: "6px 12px" }}
+            >
+              HELLO
+            </button>
 
-{/* 3D Visualizer */}
-<div style={{ 
-  height: 400, 
-  background: "#000", 
-  borderRadius: 8, 
-  marginBottom: 16, 
-  position: "relative",
-  border: "1px solid #3a3d42"
-}}>
-  {visualizerConfig && visualizerConfig.fixtures.length > 0 ? (
-    <Visualizer3D
-      config={visualizerConfig.fixtures}
-      fixtures={fixtures}
-      pixelColors={computePixelColors(previewEvent, playheadMs, tempoBpm)}
-    />
-  ) : (
-    <div style={{ 
-      display: "grid", 
-      placeItems: "center", 
-      height: "100%", 
-      color: "#666",
-      fontSize: 14
-    }}>
-      Configure fixtures in Model Configurator → 3D Layout tab
-    </div>
-  )}
-  
-  {/* Optional: show playhead time overlay */}
-  <div style={{
-    position: "absolute",
-    top: 8,
-    left: 8,
-    background: "rgba(0,0,0,0.7)",
-    padding: "4px 8px",
-    borderRadius: 4,
-    fontSize: 12,
-    color: "#bbb"
-  }}>
-    t={Math.round(playheadMs)}ms • {tempoBpm} BPM
-  </div>
-</div>
+            <button
+              onClick={async () => {
+                try {
+                  await invoke("send_erase");
+                  setStatus("ERASE ok");
+                } catch (e: any) {
+                  setStatus(`ERASE failed: ${e}`);
+                }
+              }}
+              style={{ padding: "6px 12px" }}
+            >
+              ERASE
+            </button>
 
-{/* Existing 2D Blade Preview label */}
-<h4 style={{ marginTop: 0, marginBottom: 8, fontSize: 14 }}>2D Blade Preview</h4>
+            <button
+              onClick={async () => {
+                try {
+                  const testData = new Uint8Array([0x01, 0x02, 0x03, 0x04]);
+                  await invoke("send_write", {
+                    offset: 0,
+                    data: Array.from(testData),
+                  });
+                  setStatus("WRITE ok (4 bytes @ 0)");
+                } catch (e: any) {
+                  setStatus(`WRITE failed: ${e}`);
+                }
+              }}
+              style={{ padding: "6px 12px" }}
+            >
+              WRITE (test)
+            </button>
 
-<div
-  style={{
-    height: 320,
+            <button
+              onClick={async () => {
+                try {
+                  const crc = await invoke<number>("send_verify");
+                  setStatus(
+                    `VERIFY ok: CRC16 = 0x${crc.toString(16).padStart(4, "0")}`
+                  );
+                } catch (e: any) {
+                  setStatus(`VERIFY failed: ${e}`);
+                }
+              }}
+              style={{ padding: "6px 12px" }}
+            >
+              VERIFY
+            </button>
+
+            <button
+              onClick={async () => {
+                try {
+                  await invoke("send_start");
+                  setStatus("START ok");
+                } catch (e: any) {
+                  setStatus(`START failed: ${e}`);
+                }
+              }}
+              style={{ padding: "6px 12px" }}
+            >
+              START
+            </button>
+
+            <span
+              style={{
+                fontSize: 12,
+                color: status.includes("failed") ? "#e74c3c" : "#2ecc71",
+                marginLeft: 8,
+              }}
+            >
+              {status}
+            </span>
+          </div>
+        </div>
+
+        {/* 3D Visualizer */}
+        <div
+          style={{
+            height: 400,
+            background: "#000",
+            borderRadius: 8,
+            marginBottom: 16,
+            position: "relative",
+            border: "1px solid #3a3d42",
+          }}
+        >
+          {visualizerConfig && visualizerConfig.fixtures.length > 0 ? (
+            <Visualizer3D
+              config={visualizerConfig.fixtures}
+              fixtures={fixtures}
+              pixelColors={computePixelColorsForAll(
+                events,
+                localTimeMs,
+                tempoBpm,
+                fixtures ?? [],
+                getFunctionDescriptor
+              )}
+            />
+          ) : (
+            <div
+              style={{
+                display: "grid",
+                placeItems: "center",
+                height: "100%",
+                color: "#666",
+                fontSize: 14,
+              }}
+            >
+              Configure fixtures in Model Configurator → 3D Layout tab
+            </div>
+          )}
+
+          {/* Optional: show playhead time overlay */}
+          <div
+            style={{
+              position: "absolute",
+              top: 8,
+              left: 8,
+              background: "rgba(0,0,0,0.7)",
+              padding: "4px 8px",
+              borderRadius: 4,
+              fontSize: 12,
+              color: "#bbb",
+            }}
+          >
+            t={Math.round(localTimeMs)}ms • {tempoBpm} BPM
+          </div>
+        </div>
+
+        {/* Existing 2D Blade Preview label */}
+        <h4 style={{ marginTop: 0, marginBottom: 8, fontSize: 14 }}>
+          2D Blade Preview
+        </h4>
+
+        <div
+          style={{
+            height: 320,
             border: "1px dashed #3a3d42",
             borderRadius: 8,
             marginBottom: 12,
@@ -615,7 +750,7 @@ export default function ShowProgrammer({
                 const baseAngleTop = computeBaseAngle(
                   paramsTop,
                   tempoBpm,
-                  playheadMs
+                  localTimeMs
                 );
                 const lineCountTop = Math.max(
                   1,
@@ -672,7 +807,7 @@ export default function ShowProgrammer({
                       />
                     ))}
                     <text x={8} y={20} fill="#bbb" fontSize="12">
-                      Top • {tempoBpm} BPM • t={Math.round(playheadMs)}ms
+                      Top • {tempoBpm} BPM • t={Math.round(localTimeMs)}ms
                     </text>
                   </svg>
                 );
@@ -701,7 +836,7 @@ export default function ShowProgrammer({
                 const baseAngleBottom = computeBaseAngle(
                   paramsBottom,
                   tempoBpm,
-                  playheadMs
+                  localTimeMs
                 );
                 const lineCountBottom = Math.max(
                   1,
@@ -758,7 +893,7 @@ export default function ShowProgrammer({
                       />
                     ))}
                     <text x={8} y={20} fill="#bbb" fontSize="12">
-                      Bottom • {tempoBpm} BPM • t={Math.round(playheadMs)}ms
+                      Bottom • {tempoBpm} BPM • t={Math.round(localTimeMs)}ms
                     </text>
                   </svg>
                 );
@@ -767,27 +902,7 @@ export default function ShowProgrammer({
               <span style={{ opacity: 0.6 }}>No event to preview</span>
             )}
           </div>
-
-          {/* Local transport overlay for preview */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: 8,
-              right: 8,
-              display: "flex",
-              gap: 8,
-            }}
-          >
-            <button onClick={handlePlay} disabled={isPlaying}>
-              Play
-            </button>
-            <button onClick={handlePause} disabled={!isPlaying}>
-              Pause
-            </button>
-            <button onClick={() => handleSeek(-5000)}>⟲ -5s</button>
-            <button onClick={() => handleSeek(5000)}>⟶ +5s</button>
           </div>
-        </div>
 
         {/* [ADD] Row editor modal — blade media for the selected event */}
         {editingEvent && (
@@ -825,5 +940,6 @@ export default function ShowProgrammer({
         </div>
       </div>
     </div>
+      
   );
 }

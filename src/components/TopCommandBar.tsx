@@ -1,10 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";            // Tauri v2
+import { invoke } from "@tauri-apps/api/core"; // Tauri v2
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { exit } from "@tauri-apps/plugin-process";
 import { VisualizerConfig } from "./ModelLayoutEditor/modelTypes";
-
 
 type Target = "blade" | "fuselage" | "both";
 
@@ -16,15 +15,23 @@ type Props = {
   onForward?: (ms?: number) => void;
   onProjectLoaded?: (json: any, path?: string) => void;
   onProjectSaved?: (path: string) => void;
-  getProjectJson?: () => any;         // return current project JSON to save
-  defaultJumpMs?: number;             // rewind/forward step (default 5000ms)
+  getProjectJson?: () => any; // return current project JSON to save
+  defaultJumpMs?: number; // rewind/forward step (default 5000ms)
   visualizerConfig?: VisualizerConfig;
   onVisualizerConfigChange?: (config: VisualizerConfig) => void;
+  playing?: boolean;
+  timeMs?: number;
 };
 
 const usbRegex = /(usb(modem|serial)|cu\.usb|tty\.usb)/i;
 
-function TopbarMenu({ label, children }: { label: string; children: React.ReactNode }) {
+function TopbarMenu({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   const [open, setOpen] = React.useState(false);
   const closeTimer = React.useRef<number | null>(null);
 
@@ -46,16 +53,16 @@ function TopbarMenu({ label, children }: { label: string; children: React.ReactN
   return (
     <div style={groupStyle}>
       <div
-        style={menuStyle}                  // position: "relative" already
+        style={menuStyle} // position: "relative" already
         onMouseEnter={cancelClose}
         onMouseLeave={scheduleClose}
-        onClick={() => setOpen(v => !v)}   // click-to-toggle too
+        onClick={() => setOpen((v) => !v)} // click-to-toggle too
       >
         {label} ▾
         <div
           style={{
             ...dropdownStyle,
-            top: "calc(100% + 2px)",       // avoid touching the label edge
+            top: "calc(100% + 2px)", // avoid touching the label edge
             display: open ? "flex" : "none",
           }}
           onMouseEnter={cancelClose}
@@ -68,10 +75,8 @@ function TopbarMenu({ label, children }: { label: string; children: React.ReactN
   );
 }
 
-
-
 export default function TopCommandBar({
-    onOpenModelEditor,
+  onOpenModelEditor,
   onPlay,
   onPause,
   onRewind,
@@ -80,6 +85,8 @@ export default function TopCommandBar({
   onProjectSaved,
   getProjectJson,
   defaultJumpMs = 5000,
+  playing = false,
+  timeMs = 0,
 }: Props) {
   const [ports, setPorts] = useState<string[]>([]);
   const [showNonUsb, setShowNonUsb] = useState(false);
@@ -88,16 +95,13 @@ export default function TopCommandBar({
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<"idle" | "ok" | "busy" | "err">("idle");
   const [target, setTarget] = useState<Target>("blade");
-  const [playing, setPlaying] = useState(false);
-  const [timeMs, setTimeMs] = useState(0);
   const [projectPath, setProjectPath] = useState<string | undefined>(undefined);
   const [selectedFuselagePort, setSelectedFuselagePort] = useState<string>("");
   const [selectedBladePort, setSelectedBladePort] = useState<string>("");
 
-
   // Time readout mm:ss.mmm
   const timecode = useMemo(() => {
-    const ms = Math.max(0, timeMs);
+    const ms = Math.max(0, timeMs ?? 0);
     const m = Math.floor(ms / 60000);
     const s = Math.floor((ms % 60000) / 1000);
     const f = Math.floor(ms % 1000);
@@ -170,7 +174,9 @@ export default function TopCommandBar({
     try {
       const selected = await open({
         multiple: false,
-        filters: [{ name: "SYNCHRON Project", extensions: ["syncproj", "json"] }],
+        filters: [
+          { name: "SYNCHRON Project", extensions: ["syncproj", "json"] },
+        ],
       });
       if (typeof selected === "string") {
         const txt = await readTextFile(selected);
@@ -188,7 +194,9 @@ export default function TopCommandBar({
       let dest = projectPath;
       if (!dest || saveAs) {
         const result = await save({
-          filters: [{ name: "SYNCHRON Project", extensions: ["syncproj", "json"] }],
+          filters: [
+            { name: "SYNCHRON Project", extensions: ["syncproj", "json"] },
+          ],
           defaultPath: dest,
         });
         dest = typeof result === "string" ? result : undefined;
@@ -199,7 +207,7 @@ export default function TopCommandBar({
       await writeTextFile(dest, JSON.stringify(data, null, 2));
       setProjectPath(dest);
       onProjectSaved?.(dest);
-      localStorage.setItem('lastProjectPath', dest);  
+      localStorage.setItem("lastProjectPath", dest);
       console.log("Saved path to local", dest);
     } catch (e) {
       console.error("save failed:", e);
@@ -230,127 +238,167 @@ export default function TopCommandBar({
     }
   }
 
-  function handlePlayPause() {
-    if (playing) {
-      setPlaying(false);
-      onPause?.();
-    } else {
-      setPlaying(true);
-      onPlay?.();
-    }
-  }
-
-  function jump(dir: -1 | 1) {
-    const delta = defaultJumpMs * dir;
-    const next = Math.max(0, timeMs + delta);
-    setTimeMs(next);
-    if (dir < 0) onRewind?.(defaultJumpMs);
-    else onForward?.(defaultJumpMs);
-  }
-
   // Simple pill color
   const pillColor =
-    status === "ok" ? "#2ecc71" : status === "busy" ? "#f39c12" : status === "err" ? "#e74c3c" : "#95a5a6";
+    status === "ok"
+      ? "#2ecc71"
+      : status === "busy"
+      ? "#f39c12"
+      : status === "err"
+      ? "#e74c3c"
+      : "#95a5a6";
 
   return (
-  <div style={barStyle}>
-    {/* File menu */}
-    <TopbarMenu label="File">
-      <button onClick={handleOpen}>Open… ⌘O</button>
-      <button onClick={() => handleSave(false)}>Save ⌘S</button>
-      <button onClick={() => handleSave(true)}>Save As… ⇧⌘S</button>
-      <button onClick={handleExit}>Exit ⌘Q</button>
-    </TopbarMenu>
+    <div style={barStyle}>
+      {/* File menu */}
+      <TopbarMenu label="File">
+        <button onClick={handleOpen}>Open… ⌘O</button>
+        <button onClick={() => handleSave(false)}>Save ⌘S</button>
+        <button onClick={() => handleSave(true)}>Save As… ⇧⌘S</button>
+        <button onClick={handleExit}>Exit ⌘Q</button>
+      </TopbarMenu>
 
-    {/* Tools menu */}
-    <TopbarMenu label="Tools">
-      <button onClick={() => onOpenModelEditor?.()}>Model Layout Editor</button>
-    </TopbarMenu>
+      {/* Tools menu */}
+      <TopbarMenu label="Tools">
+        <button onClick={() => onOpenModelEditor?.()}>
+          Model Layout Editor
+        </button>
+      </TopbarMenu>
 
-{/* 
-    * Transport *
-    <div style={groupStyle}>
-      <button onClick={() => jump(-1)} title="Rewind (J)">⟲</button>
-      <button onClick={handlePlayPause} title="Play/Pause (Space)">{playing ? "⏸" : "▶"}</button>
-      <button onClick={() => jump(1)} title="Forward (L)">⟶</button>
-      <span style={{ marginLeft: 8, fontVariantNumeric: "tabular-nums" }}>{timecode}</span>
-    </div> 
-    */}
+      {/* Transport */}
+      <div style={groupStyle}>
+        <button
+          //onClick={() => onRewind?.(defaultJumpMs)}
+          onClick={() => onRewind?.()}
+          title="Rewind"
+        >
+          ⟲
+        </button>
+        <button
+          onClick={() => (playing ? onPause?.() : onPlay?.())}
+          title="Play/Pause"
+        >
+          {playing ? "⏸" : "▶"}
+        </button>
+        <button onClick={() => onForward?.()} title="Forward">
+          ⟶
+        </button>
+        <span style={{ marginLeft: 8, fontVariantNumeric: "tabular-nums" }}>
+          {timecode}
+        </span>
+      </div>
 
-    {/* Target & Port */}
-    <div style={groupStyle}>
-      <span style={{ marginRight: 6 }}>Target:</span>
-      <label style={radioStyle}><input type="radio" name="tgt" checked={target==="blade"} onChange={()=>setTarget("blade")} /> Blade</label>
-      <label style={radioStyle}><input type="radio" name="tgt" checked={target==="fuselage"} onChange={()=>setTarget("fuselage")} /> Fuselage</label>
-      <label style={radioStyle}><input type="radio" name="tgt" checked={target==="both"} onChange={()=>setTarget("both")} /> Both</label>
+      {/* Target & Port */}
+      <div style={groupStyle}>
+        <span style={{ marginRight: 6 }}>Target:</span>
+        <label style={radioStyle}>
+          <input
+            type="radio"
+            name="tgt"
+            checked={target === "blade"}
+            onChange={() => setTarget("blade")}
+          />{" "}
+          Blade
+        </label>
+        <label style={radioStyle}>
+          <input
+            type="radio"
+            name="tgt"
+            checked={target === "fuselage"}
+            onChange={() => setTarget("fuselage")}
+          />{" "}
+          Fuselage
+        </label>
+        <label style={radioStyle}>
+          <input
+            type="radio"
+            name="tgt"
+            checked={target === "both"}
+            onChange={() => setTarget("both")}
+          />{" "}
+          Both
+        </label>
 
-      {target === "both" ? (
-  <>
-    <span style={{ marginRight: 6 }}>Fuselage Port:</span>
-    <select
-      value={selectedFuselagePort}
-      onChange={(e) => setSelectedFuselagePort(e.target.value)}
-      style={{ marginLeft: 0, minWidth: 180 }}
-      title="Fuselage Serial Port"
-    >
-      {filteredPorts.map((p) => (
-        <option key={p} value={p}>{p}</option>
-      ))}
-    </select>
-    <span style={{ margin: "0 6px" }}>Blade Port:</span>
-    <select
-      value={selectedBladePort}
-      onChange={(e) => setSelectedBladePort(e.target.value)}
-      style={{ marginLeft: 0, minWidth: 180 }}
-      title="Blade Serial Port"
-    >
-      {filteredPorts.map((p) => (
-        <option key={p} value={p}>{p}</option>
-      ))}
-    </select>
-  </>
-) : (
-  <select
-    value={selectedPort}
-    onChange={(e) => setSelectedPort(e.target.value)}
-    style={{ marginLeft: 12, minWidth: 260 }}
-    title="Serial Port"
-  >
-    {filteredPorts.map((p) => (
-      <option key={p} value={p}>{p}</option>
-    ))}
-  </select>
-)}
+        {target === "both" ? (
+          <>
+            <span style={{ marginRight: 6 }}>Fuselage Port:</span>
+            <select
+              value={selectedFuselagePort}
+              onChange={(e) => setSelectedFuselagePort(e.target.value)}
+              style={{ marginLeft: 0, minWidth: 180 }}
+              title="Fuselage Serial Port"
+            >
+              {filteredPorts.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+            <span style={{ margin: "0 6px" }}>Blade Port:</span>
+            <select
+              value={selectedBladePort}
+              onChange={(e) => setSelectedBladePort(e.target.value)}
+              style={{ marginLeft: 0, minWidth: 180 }}
+              title="Blade Serial Port"
+            >
+              {filteredPorts.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </>
+        ) : (
+          <select
+            value={selectedPort}
+            onChange={(e) => setSelectedPort(e.target.value)}
+            style={{ marginLeft: 12, minWidth: 260 }}
+            title="Serial Port"
+          >
+            {filteredPorts.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        )}
 
-      <label style={{ marginLeft: 8, fontSize: 12 }}>
-        <input
-          type="checkbox"
-          checked={showNonUsb}
-          onChange={(e) => setShowNonUsb(e.target.checked)}
-        /> Show non-USB ports
-      </label>
+        <label style={{ marginLeft: 8, fontSize: 12 }}>
+          <input
+            type="checkbox"
+            checked={showNonUsb}
+            onChange={(e) => setShowNonUsb(e.target.checked)}
+          />{" "}
+          Show non-USB ports
+        </label>
 
-      <button
-        onClick={connected ? handleDisconnect : handleConnect}
-        disabled={!selectedPort || busy}
-        style={{ marginLeft: 12 }}
-        title={connected ? "Disconnect" : "Connect"}
-      >
-        {connected ? "Disconnect" : "Connect"}
-      </button>
+        <button
+          onClick={connected ? handleDisconnect : handleConnect}
+          disabled={!selectedPort || busy}
+          style={{ marginLeft: 12 }}
+          title={connected ? "Disconnect" : "Connect"}
+        >
+          {connected ? "Disconnect" : "Connect"}
+        </button>
 
-      <span style={{ ...pillStyle, background: pillColor }} title={`Status: ${status}`} />
+        <span
+          style={{ ...pillStyle, background: pillColor }}
+          title={`Status: ${status}`}
+        />
+      </div>
+
+      {/* Primary action */}
+      <div style={groupStyle}>
+        <button
+          onClick={handleWriteShow}
+          disabled={busy || (playing && true)}
+          style={primaryBtnStyle}
+        >
+          Write Show to Controllers
+        </button>
+      </div>
     </div>
-
-    {/* Primary action */}
-    <div style={groupStyle}>
-      <button onClick={handleWriteShow} disabled={busy || (playing && true)} style={primaryBtnStyle}>
-        Write Show to Controllers
-      </button>
-    </div>
-  </div>
-);
-
+  );
 }
 
 // --- inline styles (simple / tweak as you like) ---
@@ -431,4 +479,3 @@ styleTag.innerHTML = `
   [style*="File ▾"] .topbar-dropdown { display: none; }
 `;
 document.head.appendChild(styleTag);
-

@@ -9,7 +9,7 @@ export default function FunctionParamPanel({
   onChangeParam,
 }: {
   funcId: string;
-  params: Record<string, any>;  // Changed from ParamRow[]
+  params: Record<string, any>; // Changed from ParamRow[]
   onChangeParam: (key: string, value: string) => void;
 }) {
   const funcs = listFunctions();
@@ -283,9 +283,46 @@ export default function FunctionParamPanel({
           Stationary (uncheck for rotation)
         </label>
 
-{/* 
         {!stationary && (
           <>
+            <label style={{ display: "block", marginBottom: 8 }}>
+              Timing Mode:
+              <select
+                value={get("timingMode") ?? "smooth"}
+                onChange={(e) => onChangeParam("timingMode", e.target.value)}
+                style={{ marginLeft: 8 }}
+              >
+                <option value="smooth">Smooth</option>
+                <option value="beat-jump">Beat Jump</option>
+              </select>
+            </label>
+
+            <label style={{ display: "block", marginBottom: 8 }}>
+              Degrees per Beat:
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={get("degreesPerBeat") ?? "45"}
+                onChange={(e) =>
+                  onChangeParam("degreesPerBeat", e.target.value)
+                }
+                style={{ marginLeft: 8, width: 100 }}
+              />
+            </label>
+
+            <label style={{ display: "block", marginBottom: 8 }}>
+              Beats per Revolution (360°):
+              <input
+                type="number"
+                min={1}
+                step={1}
+                value={get("beatsPerRev") ?? "4"}
+                onChange={(e) => onChangeParam("beatsPerRev", e.target.value)}
+                style={{ marginLeft: 8, width: 100 }}
+              />
+            </label>
+
             <label style={{ display: "block", marginBottom: 8 }}>
               Rotation Speed (degrees/beat):
               <input
@@ -297,6 +334,7 @@ export default function FunctionParamPanel({
                 style={{ marginLeft: 8, width: 100 }}
               />
             </label>
+
             <label style={{ display: "block", marginBottom: 8 }}>
               Direction:
               <select
@@ -312,71 +350,6 @@ export default function FunctionParamPanel({
             </label>
           </>
         )}
-         */}
-
-         {!stationary && (
-  <>
-    <label style={{ display: "block", marginBottom: 8 }}>
-      Timing Mode:
-      <select
-        value={get("timingMode") ?? "smooth"}
-        onChange={(e) => onChangeParam("timingMode", e.target.value)}
-        style={{ marginLeft: 8 }}
-      >
-        <option value="smooth">Smooth</option>
-        <option value="beat-jump">Beat Jump</option>
-      </select>
-    </label>
-
-    <label style={{ display: "block", marginBottom: 8 }}>
-      Degrees per Beat:
-      <input
-        type="number"
-        min={1}
-        step={1}
-        value={get("degreesPerBeat") ?? "45"}
-        onChange={(e) => onChangeParam("degreesPerBeat", e.target.value)}
-        style={{ marginLeft: 8, width: 100 }}
-      />
-    </label>
-
-    <label style={{ display: "block", marginBottom: 8 }}>
-      Beats per Revolution (360°):
-      <input
-        type="number"
-        min={1}
-        step={1}
-        value={get("beatsPerRev") ?? "4"}
-        onChange={(e) => onChangeParam("beatsPerRev", e.target.value)}
-        style={{ marginLeft: 8, width: 100 }}
-      />
-    </label>
-
-    <label style={{ display: "block", marginBottom: 8 }}>
-      Rotation Speed (degrees/beat):
-      <input
-        type="number"
-        min={0}
-        step={1}
-        value={get("rotationSpeed") ?? "45"}
-        onChange={(e) => onChangeParam("rotationSpeed", e.target.value)}
-        style={{ marginLeft: 8, width: 100 }}
-      />
-    </label>
-
-    <label style={{ display: "block", marginBottom: 8 }}>
-      Direction:
-      <select
-        value={get("rotationDirection") ?? "cw"}
-        onChange={(e) => onChangeParam("rotationDirection", e.target.value)}
-        style={{ marginLeft: 8 }}
-      >
-        <option value="cw">Clockwise</option>
-        <option value="ccw">Counter-Clockwise</option>
-      </select>
-    </label>
-  </>
-)}
 
         <label style={{ display: "block", marginBottom: 8 }}>
           Number of Lines:
@@ -388,6 +361,173 @@ export default function FunctionParamPanel({
             onChange={(e) => onChangeParam("lineCount", e.target.value)}
             style={{ marginLeft: 8, width: 80 }}
           />
+        </label>
+      </div>
+    );
+  }
+
+  if (funcId === "fuse:serialSnake") {
+    const get = (k: string) => String(params[k] ?? "");
+    const noteValue = get("noteValue") || "1/4";
+    const showCustom = noteValue === "custom";
+
+    return (
+      <div
+        style={{
+          marginTop: 12,
+          padding: 8,
+          border: "1px solid #3a3d42",
+          borderRadius: 6,
+        }}
+      >
+        <h4 style={{ marginTop: 0 }}>{fdesc.label} Parameters</h4>
+
+        <label style={{ display: "block", marginBottom: 8 }}>
+          Timing:
+          <select
+            value={noteValue}
+            onChange={(e) => onChangeParam("noteValue", e.target.value)}
+            style={{ marginLeft: 8 }}
+          >
+            <option value="4">Whole Note</option>
+            <option value="2">Half Note</option>
+            <option value="1">Quarter Note</option>
+            <option value="0.5">Eighth Note</option>
+            <option value="0.25">Sixteenth Note</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+
+        {showCustom && (
+          <label style={{ display: "block", marginBottom: 8 }}>
+            Custom Beat Value:
+            <input
+              type="number"
+              min={0.01}
+              step={0.01}
+              value={get("customBeatValue") || "1"}
+              onChange={(e) => onChangeParam("customBeatValue", e.target.value)}
+              style={{ marginLeft: 8, width: 100 }}
+            />
+          </label>
+        )}
+
+        <label style={{ display: "block", marginBottom: 8 }}>
+          Pixel Jump:
+          <input
+            type="number"
+            min={1}
+            step={1}
+            value={get("pixelJump") || "1"}
+            onChange={(e) => onChangeParam("pixelJump", e.target.value)}
+            style={{ marginLeft: 8, width: 80 }}
+          />
+          <span style={{ fontSize: 11, color: "#888", marginLeft: 8 }}>
+            (1 = every pixel, 2 = skip one)
+          </span>
+        </label>
+
+        <label style={{ display: "block", marginBottom: 8 }}>
+          Direction:
+          <select
+            value={get("direction") || "forward"}
+            onChange={(e) => onChangeParam("direction", e.target.value)}
+            style={{ marginLeft: 8 }}
+          >
+            <option value="forward">Forward</option>
+            <option value="backward">Backward</option>
+            <option value="bounce">Bounce</option>
+          </select>
+        </label>
+
+        <label style={{ display: "block", marginBottom: 8 }}>
+          Trail Mode:
+          <select
+            value={get("trailMode") || "snake"}
+            onChange={(e) => onChangeParam("trailMode", e.target.value)}
+            style={{ marginLeft: 8 }}
+          >
+            <option value="snake">Snake (only current pixel)</option>
+            <option value="fill">Fill (progressive)</option>
+          </select>
+        </label>
+
+        <label style={{ display: "block", marginBottom: 8 }}>
+          Fixture Mode:
+          <select
+            value={get("fixtureMode") || "per-fixture"}
+            onChange={(e) => onChangeParam("fixtureMode", e.target.value)}
+            style={{ marginLeft: 8 }}
+          >
+            <option value="per-fixture">Per Fixture (independent)</option>
+            <option value="continuous">Continuous Strip (connected)</option>
+          </select>
+        </label>
+
+                <label style={{ display: "block", marginBottom: 8 }}>
+          Color Pattern:
+          <div style={{ marginTop: 4 }}>
+            {(() => {
+              // Robustly decode whatever is in params.colorPattern
+              const raw = params.colorPattern;
+              let colorPattern: string[];
+
+              try {
+                if (Array.isArray(raw)) {
+                  colorPattern = raw as string[];
+                } else if (typeof raw === "string" && raw.trim().startsWith("[")) {
+                  colorPattern = JSON.parse(raw);
+                } else if (typeof raw === "string" && raw) {
+                  // single color string stored directly
+                  colorPattern = [raw];
+                } else {
+                  colorPattern = ["#ff0000"];
+                }
+              } catch {
+                colorPattern = ["#ff0000"];
+              }
+
+              return (
+                <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                  {colorPattern.map((color, idx) => (
+                    <div key={idx} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                      <input
+                        type="color"
+                        value={color}
+                        onChange={(e) => {
+                          const newPattern = [...colorPattern];
+                          newPattern[idx] = e.target.value;
+                          onChangeParam("colorPattern", JSON.stringify(newPattern));
+                        }}
+                        style={{ width: 40, height: 30 }}
+                      />
+                      <button
+                        onClick={() => {
+                          const newPattern = colorPattern.filter((_, i) => i !== idx);
+                          onChangeParam(
+                            "colorPattern",
+                            JSON.stringify(newPattern.length ? newPattern : ["#ff0000"])
+                          );
+                        }}
+                        style={{ fontSize: 11, padding: "4px 8px" }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    onClick={() => {
+                      const newPattern = [...colorPattern, "#ffffff"];
+                      onChangeParam("colorPattern", JSON.stringify(newPattern));
+                    }}
+                    style={{ fontSize: 11, padding: "4px 12px" }}
+                  >
+                    + Add Color
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
         </label>
       </div>
     );

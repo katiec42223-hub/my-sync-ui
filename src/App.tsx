@@ -37,8 +37,26 @@ export default function App() {
     camera: { position: [3, 2, 3], target: [0, 0, 0] },
   });
 
+  // GLOBAL transport state (shared by top bar + preview)
+  const [playheadMs, setPlayheadMs] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const handlePlay = () => setIsPlaying(true);
+  const handlePause = () => setIsPlaying(false);
+
+  // Positive delta = forward, negative = rewind
+  const handleSeek = (deltaMs: number) => {
+    setPlayheadMs((prev) => Math.max(0, prev + deltaMs));
+  };
+
+  const playbackHandlers = {
+    onPlay: handlePlay,
+    onPause: handlePause,
+    onRewind: (ms?: number) => handleSeek(-(ms ?? 5000)),
+    onForward: (ms?: number) => handleSeek(ms ?? 5000),
+  };
+
   async function handleSelectSoundtrack() {
-    // Use Tauri's open dialog to pick a music file
     const file = await open({
       multiple: false,
       filters: [
@@ -59,7 +77,7 @@ export default function App() {
       },
       layout: {
         ...layout,
-        visualizerConfig, // CORRECT - inside layout object
+        visualizerConfig,
       },
       songs: songList,
       events,
@@ -87,7 +105,6 @@ export default function App() {
               channels: json.layout.channels || [],
               alignmentGroups: json.layout.alignmentGroups || [],
             });
-            // Restore visualizer config
             if (json.layout.visualizerConfig) {
               setVisualizerConfig(json.layout.visualizerConfig);
             }
@@ -107,60 +124,52 @@ export default function App() {
   }, []);
 
   useEffect(() => console.log("[APP] view =", view), [view]);
+
   return (
     <div>
       <TopCommandBar
-        onPlay={() => console.log("play")}
-        onPause={() => console.log("pause")}
-        onRewind={(ms) => console.log("rewind", ms)}
-        onForward={(ms) => console.log("forward", ms)}
         onProjectSaved={(path) => console.log("saved", path)}
         getProjectJson={getProjectData}
         onProjectLoaded={(json, path) => {
           console.log("loaded", path, json);
 
-          // Validate format version
           if (json.formatVersion !== "1.0") {
             console.warn("Unsupported format version:", json.formatVersion);
           }
 
-          // Restore layout
           if (json.layout) {
             setLayout({
               fixtures: json.layout.fixtures || [],
               channels: json.layout.channels || [],
               alignmentGroups: json.layout.alignmentGroups || [],
             });
-            // Restore visualizer config
             if (json.layout.visualizerConfig) {
               setVisualizerConfig(json.layout.visualizerConfig);
             }
           }
 
-          // Restore visualizer config
-          if (json.layout.visualizerConfig) {
-            setVisualizerConfig(json.layout.visualizerConfig);
-          }
-
-          // Restore songs
           if (Array.isArray(json.songs)) {
             setSongList(json.songs);
           }
 
-          // Restore events
           if (Array.isArray(json.events)) {
             setEvents(json.events);
           }
 
-          // Restore soundtrack
           if (typeof json.soundtrack === "string") {
             setSoundtrack(json.soundtrack);
           }
 
-          // Store this as the last opened project
           localStorage.setItem("lastProjectPath", path || "");
         }}
         onOpenModelEditor={() => setView("model-editor")}
+        // transport wiring
+        playing={isPlaying}
+        timeMs={playheadMs}
+        onPlay={playbackHandlers.onPlay}
+        onPause={playbackHandlers.onPause}
+        onRewind={() => handleSeek(-5000)}
+        onForward={() => handleSeek(5000)}
       />
 
       {view === "main" && (
@@ -173,25 +182,21 @@ export default function App() {
             onSongListChange={setSongList}
             events={events}
             onEventsChange={setEvents}
-            onPlay={() => {
-              /* implement playback logic */
-            }}
-            onPause={() => {
-              /* implement pause logic */
-            }}
-            onRewind={() => {
-              /* implement rewind logic */
-            }}
-            onForward={() => {
-              /* implement forward logic */
-            }}
             onSelectSoundtrack={handleSelectSoundtrack}
             soundtrack={soundtrack}
             visualizerConfig={visualizerConfig}
+            // share transport state + controls with preview
+            playing={isPlaying}
+            timeMs={playheadMs}
+            onPlay={handlePlay}
+            onPause={handlePause}
+            onRewind={(ms = 5000) => handleSeek(-ms)}
+            onForward={(ms = 5000) => handleSeek(ms)}
           />
           <TimelineEditor />
         </>
       )}
+
       {view === "model-editor" && (
         <ModelLayoutEditor
           fixtures={layout.fixtures}
@@ -207,7 +212,7 @@ export default function App() {
           onVisualizerConfigChange={setVisualizerConfig}
         />
       )}
-      {/* the rest of your UI goes here (timeline, previews, etc.) */}
     </div>
   );
 }
+1;

@@ -1,0 +1,149 @@
+.
+├── README.md
+├── archives
+│   └── usb-protocol-implementation-20251201.md
+├── docs
+├── firmware
+│   ├── CMakeLists.txt
+│   ├── blade
+│   │   ├── CMakeLists.txt
+│   │   ├── include
+│   │   ├── pio
+│   │   └── src
+│   ├── build
+│   │   ├── CMakeCache.txt
+│   │   ├── CMakeFiles
+│   │   ├── Makefile
+│   │   ├── _deps
+│   │   ├── blade
+│   │   ├── cmake_install.cmake
+│   │   ├── common
+│   │   ├── compile_commands.json
+│   │   ├── fuselage
+│   │   ├── generated
+│   │   ├── pico-sdk
+│   │   ├── pico_flash_region.ld
+│   │   ├── pioasm
+│   │   └── pioasm-install
+│   ├── common
+│   │   ├── CMakeLists.txt
+│   │   ├── include
+│   │   ├── src
+│   │   └── third_party
+│   ├── docs
+│   │   ├── CONTEXT.md
+│   │   ├── HW_PINS.md
+│   │   ├── PROTOCOL.md
+│   │   ├── SHOWFILE.md
+│   │   └── TIMING.md
+│   ├── docs.zip
+│   ├── fuselage
+│   │   ├── CMakeLists.txt
+│   │   ├── include
+│   │   └── src
+│   ├── pico_sdk_import.cmake
+│   ├── tests
+│   │   └── host
+│   └── tools
+│       └── make_show
+├── firmware-structure.txt
+├── index.html
+├── node_modules
+│   ├── @react-three
+│   │   ├── drei -> ../.pnpm/@react-three+drei@10.7.7_@react-three+fiber@9.4.2_@types+react@19.2.6_react-dom@19.2.0__1b260a60cea8ef43c8750ef66107ebbb/node_modules/@react-three/drei
+│   │   └── fiber -> ../.pnpm/@react-three+fiber@9.4.2_@types+react@19.2.6_react-dom@19.2.0_react@19.2.0__react@19.2.0_three@0.181.2/node_modules/@react-three/fiber
+│   ├── @tauri-apps
+│   │   ├── api -> ../.pnpm/@tauri-apps+api@2.9.0/node_modules/@tauri-apps/api
+│   │   ├── cli -> ../.pnpm/@tauri-apps+cli@2.9.4/node_modules/@tauri-apps/cli
+│   │   ├── plugin-dialog -> ../.pnpm/@tauri-apps+plugin-dialog@2.4.2/node_modules/@tauri-apps/plugin-dialog
+│   │   ├── plugin-fs -> ../.pnpm/@tauri-apps+plugin-fs@2.4.4/node_modules/@tauri-apps/plugin-fs
+│   │   ├── plugin-opener -> ../.pnpm/@tauri-apps+plugin-opener@2.5.2/node_modules/@tauri-apps/plugin-opener
+│   │   └── plugin-process -> ../.pnpm/@tauri-apps+plugin-process@2.3.1/node_modules/@tauri-apps/plugin-process
+│   ├── @types
+│   │   ├── react -> ../.pnpm/@types+react@19.2.6/node_modules/@types/react
+│   │   ├── react-dom -> ../.pnpm/@types+react-dom@19.2.3_@types+react@19.2.6/node_modules/@types/react-dom
+│   │   └── three -> ../.pnpm/@types+three@0.181.0/node_modules/@types/three
+│   ├── @vitejs
+│   │   └── plugin-react -> ../.pnpm/@vitejs+plugin-react@4.7.0_vite@7.2.4/node_modules/@vitejs/plugin-react
+│   ├── react -> .pnpm/react@19.2.0/node_modules/react
+│   ├── react-dom -> .pnpm/react-dom@19.2.0_react@19.2.0/node_modules/react-dom
+│   ├── three -> .pnpm/three@0.181.2/node_modules/three
+│   ├── typescript -> .pnpm/typescript@5.8.3/node_modules/typescript
+│   └── vite -> .pnpm/vite@7.2.4/node_modules/vite
+├── package.json
+├── pnpm-lock.yaml
+├── pnpm-workspace.yaml
+├── public
+│   ├── tauri.svg
+│   └── vite.svg
+├── scripts
+│   └── git-reminder.js
+├── src
+│   ├── App.css
+│   ├── App.tsx
+│   ├── ShowEventEditor.tsx
+│   ├── SongListEditor.tsx
+│   ├── assets
+│   │   └── react.svg
+│   ├── components
+│   │   ├── DeviceManager.tsx
+│   │   ├── FunctionParamPanel.tsx
+│   │   ├── ModelLayoutEditor
+│   │   ├── SAFE_ShowProgrammer.tsx
+│   │   ├── ShowProgrammer.tsx
+│   │   ├── ShowProgrammer_backup.tsx
+│   │   ├── TimelineEditor.tsx
+│   │   ├── TopCommandBar.tsx
+│   │   └── Visualizer3D
+│   ├── functions
+│   │   ├── bladeLine.ts
+│   │   ├── registry.ts
+│   │   ├── serialSnake.ts
+│   │   └── verticalSweep.ts
+│   ├── lib
+│   │   ├── Builder.ts
+│   │   └── Programmer.ts
+│   ├── main.tsx
+│   ├── types.ts
+│   └── vite-env.d.ts
+├── src-tauri
+│   ├── Cargo.lock
+│   ├── Cargo.toml
+│   ├── build.rs
+│   ├── capabilities
+│   │   ├── allow-dialog.json
+│   │   └── default.json
+│   ├── gen
+│   │   └── schemas
+│   ├── icons
+│   │   ├── 128x128.png
+│   │   ├── 128x128@2x.png
+│   │   ├── 32x32.png
+│   │   ├── Square107x107Logo.png
+│   │   ├── Square142x142Logo.png
+│   │   ├── Square150x150Logo.png
+│   │   ├── Square284x284Logo.png
+│   │   ├── Square30x30Logo.png
+│   │   ├── Square310x310Logo.png
+│   │   ├── Square44x44Logo.png
+│   │   ├── Square71x71Logo.png
+│   │   ├── Square89x89Logo.png
+│   │   ├── StoreLogo.png
+│   │   ├── icon.icns
+│   │   ├── icon.ico
+│   │   └── icon.png
+│   ├── src
+│   │   ├── lib.rs
+│   │   ├── main.rs
+│   │   └── protocol.rs
+│   ├── target
+│   │   ├── CACHEDIR.TAG
+│   │   ├── debug
+│   │   └── flycheck0
+│   └── tauri.conf.json
+├── structure.txt
+├── tsconfig.json
+├── tsconfig.node.json
+└── vite.config.ts
+
+70 directories, 77 files

@@ -1,3 +1,16 @@
+// Add this BEFORE the ShowEvent type definition
+export type SerialSnakeParams = {
+  songId: string;
+  noteValue: "1/1" | "1/2" | "1/4" | "1/8" | "1/16" | "custom";
+  customBeatValue?: number; // Only used when noteValue is "custom"
+  pixelJump: number; // 1 = every pixel, 2 = skip one, etc.
+  colorPattern: string[]; // Array of hex colors to cycle through
+  direction: "forward" | "backward" | "bounce";
+  trailMode: "snake" | "fill"; // snake = only current pixel, fill = accumulate
+  fixtureMode: "per-fixture" | "continuous"; // Per fixture or treat as one strip
+  fixtureIds: string[]; // Which fixtures to apply to
+};
+
 export type ShowEvent = {
   id: string;
   songId: number;
@@ -31,6 +44,7 @@ export type ShowEvent = {
       channelPixelMap?: Record<string, number[]>;
     };
   };
+  
 };
 
 export type BladeMedia = {
