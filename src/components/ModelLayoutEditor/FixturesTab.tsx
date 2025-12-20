@@ -1,11 +1,8 @@
 // src/components/ModelLayoutEditor/FixturesTab.tsx
-
-// src/components/ModelLayoutEditor/FixturesTab.tsx
 import React from "react";
 import FixturesTable from "./fixtures/FixturesTable";
 import FixtureDetailPanel from "./fixtures/FixtureDetailPanel";
 import type { Fixture } from "./modelTypes";
-
 
 type Props = {
   fixtures: Fixture[];
@@ -13,7 +10,11 @@ type Props = {
   onRenameFixtureId?: (oldId: string, newId: string) => void;
 };
 
-export default function FixturesTab({ fixtures, onFixturesChange, onRenameFixtureId }: Props) {
+export default function FixturesTab({
+  fixtures,
+  onFixturesChange,
+  onRenameFixtureId,
+}: Props) {
   const [selectedId, setSelectedId] = React.useState<string | null>(null);
 
   function handleAddFixture() {
@@ -28,9 +29,16 @@ export default function FixturesTab({ fixtures, onFixturesChange, onRenameFixtur
       side: null,
       orientation: null,
       alignmentGroupIds: [],
+      ledType: "SK9822",
+      serialIn: "START",
     };
     onFixturesChange([...fixtures, newFixture]);
     setSelectedId(newFixture.id);
+  }
+
+  function handleDeleteFixture(fixtureId: string) {
+    onFixturesChange(fixtures.filter((f) => f.id !== fixtureId));
+    setSelectedId((prev) => (prev === fixtureId ? null : prev));
   }
 
   function handleChangeFixture(updated: Fixture) {
@@ -46,11 +54,9 @@ export default function FixturesTab({ fixtures, onFixturesChange, onRenameFixtur
         <button onClick={handleAddFixture}>+ Add Fixture</button>
       </div>
 
-    <p style={{ fontSize: 12, opacity: 0.8, margin: "4px 0" }}>
-  fixtures: {fixtures.length} — selectedId: {selectedId ?? "(none)"}
-</p>
-
-
+      <p style={{ fontSize: 12, opacity: 0.8, margin: "4px 0" }}>
+        fixtures: {fixtures.length} — selectedId: {selectedId ?? "(none)"}
+      </p>
 
       <FixturesTable
         fixtures={fixtures}
@@ -66,11 +72,12 @@ export default function FixturesTab({ fixtures, onFixturesChange, onRenameFixtur
             console.log("[FixturesTab] onClose -> clear selection");
             setSelectedId(null);
           }}
-          onRenameId={(newId) =>{
+          onRenameId={(newId) => {
             if (!newId) return;
             onRenameFixtureId?.(selectedFixture.id, newId);
             setSelectedId(newId);
           }}
+          onDelete={handleDeleteFixture}
         />
       )}
     </div>
@@ -78,9 +85,6 @@ export default function FixturesTab({ fixtures, onFixturesChange, onRenameFixtur
 }
 
 // … styles unchanged …
-
-
-
 
 const containerStyle: React.CSSProperties = {
   display: "flex",

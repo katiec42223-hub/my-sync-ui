@@ -1,11 +1,12 @@
 // src/components/ModelLayoutEditor/fixtures/FixtureDetailPanel.tsx
 
 import React from "react";
-import { Fixture, Side, Orientation, Zone, LED_TYPES } from "../modelTypes";
+import { Fixture, LED_TYPES } from "../modelTypes";
 
 type Props = {
   fixture: Fixture;
   onChange: (fixture: Fixture) => void;
+  onDelete: (fixtureId: string) => void;
   onClose?: () => void;
   onRenameId?: (newId: string) => void;
 };
@@ -13,6 +14,7 @@ type Props = {
 export default function FixtureDetailPanel({
   fixture,
   onChange,
+  onDelete,
   onClose,
   onRenameId,
 }: Props) {
@@ -20,39 +22,58 @@ export default function FixtureDetailPanel({
     onChange({ ...fixture, [key]: value });
   }
 
-  const sides: Side[] = ["LEFT", "RIGHT", "TOP", "BOTTOM", null];
-  const orientations: Orientation[] = [
-    "LEFT",
-    "RIGHT",
-    "UP",
-    "DOWN",
-    "FORWARD",
-    "BACKWARD",
-    null,
-  ];
-  const zones: Zone[] = [
-    "MAIN_BODY",
-    "TAIL_BOOM",
-    "TAIL_FIN",
-    "UNDEFINED_ZONE",
-  ];
+  // const sides: Side[] = ["LEFT", "RIGHT", "TOP", "BOTTOM", null];
+  // const orientations: Orientation[] = [
+  //   "LEFT",
+  //   "RIGHT",
+  //   "UP",
+  //   "DOWN",
+  //   "FORWARD",
+  //   "BACKWARD",
+  //   null,
+  // ];
+  // const zones: Zone[] = [
+  //   "MAIN_BODY",
+  //   "TAIL_BOOM",
+  //   "TAIL_FIN",
+  //   "UNDEFINED_ZONE",
+  // ];
 
   return (
     <div style={panelStyle}>
       <div style={panelHeaderStyle}>
         <h3 style={{ margin: 0 }}>Fixture Details</h3>
-        {onClose && (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button
             onClick={(e) => {
               e.stopPropagation();
-              console.log("[FixtureDetailPanel] close clicked");
-              onClose?.();
+              const ok = window.confirm(
+                `Delete fixture "${fixture.name}" (${fixture.id})? This cannot be undone.`
+              );
+              if (!ok) return;
+              console.log("[FixtureDetailPanel] delete clicked", fixture.id);
+              onDelete(fixture.id);
             }}
-            style={closeBtnStyle}
+            style={deleteBtnStyle}
+            title="Delete fixture"
           >
-            ✕
+            Delete
           </button>
-        )}
+
+          {onClose && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                console.log("[FixtureDetailPanel] close clicked");
+                onClose?.();
+              }}
+              style={closeBtnStyle}
+              title="Close"
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={fieldColumnStyle}>
@@ -72,20 +93,6 @@ export default function FixtureDetailPanel({
             value={fixture.id}
             onChange={(e) => onRenameId?.(e.target.value)}
           />
-        </label>
-
-        <label style={labelStyle}>
-          Zone
-          <select
-            value={fixture.zone}
-            onChange={(e) => update("zone", e.target.value)}
-          >
-            {zones.map((z) => (
-              <option key={z} value={z}>
-                {z}
-              </option>
-            ))}
-          </select>
         </label>
 
         <label style={labelStyle}>
@@ -116,142 +123,74 @@ export default function FixtureDetailPanel({
           />
         </label>
 
-        {/* After the pixelCount input, add: */}
-
         {/* LED Type Selection */}
-<label style={labelStyle}>
-  LED Type
-  <select
-    value={fixture.ledType || "SK9822"}
-    onChange={(e) =>
-      update("ledType", e.target.value as keyof typeof LED_TYPES)
-    }
-  >
-    {Object.entries(LED_TYPES).map(([key, spec]) => (
-      <option key={key} value={key}>
-        {spec.name}
-      </option>
-    ))}
-  </select>
-</label>
-
-{/* Custom spacing/diameter if CUSTOM type */}
-{fixture.ledType === "CUSTOM" && (
-  <>
-    <label style={labelStyle}>
-      Pixel Spacing (mm)
-      <input
-        type="number"
-        value={fixture.customSpacing || 30}
-        onChange={(e) =>
-          update("customSpacing", parseInt(e.target.value))
-        }
-      />
-    </label>
-    <label style={labelStyle}>
-      Pixel Diameter (mm)
-      <input
-        type="number"
-        value={fixture.customDiameter || 5}
-        onChange={(e) =>
-          update("customDiameter", parseInt(e.target.value))
-        }
-      />
-    </label>
-  </>
-)}
 
         <label style={labelStyle}>
-          Pixel Offset
-          <input
-            type="number"
-            value={fixture.pixelOffset ?? ""}
-            onChange={(e) =>
-              update(
-                "pixelOffset",
-                e.target.value === "" ? null : Number(e.target.value)
-              )
-            }
-          />
-        </label>
-
-        <label style={labelStyle}>
-          Physical Length (mm)
-          <input
-            type="number"
-            value={fixture.physicalLengthMm ?? ""}
-            onChange={(e) =>
-              update(
-                "physicalLengthMm",
-                e.target.value === "" ? null : Number(e.target.value)
-              )
-            }
-          />
-        </label>
-
-        <label style={labelStyle}>
-          Side
+          LED Type
           <select
-            value={fixture.side ?? ""}
+            value={fixture.ledType || "SK9822"}
             onChange={(e) =>
-              update(
-                "side",
-                (e.target.value === "" ? null : e.target.value) as Side
-              )
+              update("ledType", e.target.value as keyof typeof LED_TYPES)
             }
           >
-            <option value="">(none)</option>
-            {sides
-              .filter((s) => s !== null)
-              .map((s) => (
-                <option key={s} value={s!}>
-                  {s}
-                </option>
-              ))}
+            {Object.entries(LED_TYPES).map(([key, spec]) => (
+              <option key={key} value={key}>
+                {spec.name}
+              </option>
+            ))}
           </select>
         </label>
 
-        <label style={labelStyle}>
-          Orientation
-          <select
-            value={fixture.orientation ?? ""}
-            onChange={(e) =>
-              update(
-                "orientation",
-                (e.target.value === "" ? null : e.target.value) as Orientation
-              )
-            }
-          >
-            <option value="">(none)</option>
-            {orientations
-              .filter((o) => o !== null)
-              .map((o) => (
-                <option key={o} value={o!}>
-                  {o}
-                </option>
-              ))}
-          </select>
-        </label>
+        {/* Custom spacing/diameter if CUSTOM type */}
+        {fixture.ledType === "CUSTOM" && (
+          <>
+            <label style={labelStyle}>
+              Pixel Spacing (mm)
+              <input
+                type="number"
+                value={fixture.customSpacing || 30}
+                onChange={(e) =>
+                  update("customSpacing", parseInt(e.target.value))
+                }
+              />
+            </label>
+            <label style={labelStyle}>
+              Pixel Diameter (mm)
+              <input
+                type="number"
+                value={fixture.customDiameter || 5}
+                onChange={(e) =>
+                  update("customDiameter", parseInt(e.target.value))
+                }
+              />
+            </label>
+          </>
+        )}
 
-        <label style={labelStyle}>
-          Alignment Group IDs (comma separated)
-          <input
-            type="text"
-            value={fixture.alignmentGroupIds.join(", ")}
-            onChange={(e) =>
-              update(
-                "alignmentGroupIds",
-                e.target.value
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter(Boolean)
-              )
-            }
-          />
-        </label>
+        <div style={{ fontSize: 12, opacity: 0.85 }}>
+          Derived length: {formatDerivedLengthMm(fixture)} mm
+        </div>
       </div>
     </div>
   );
+}
+
+function getSpacingMm(fixture: Fixture): number {
+  const spec = LED_TYPES[fixture.ledType || "SK9822"];
+  if (!spec) return 0;
+  if ((fixture.ledType || "SK9822") === "CUSTOM") {
+    return fixture.customSpacing ?? spec.pixelSpacing;
+  }
+  return spec.pixelSpacing;
+}
+
+function formatDerivedLengthMm(fixture: Fixture): string {
+  const count = fixture.pixelCount ?? 0;
+  const spacing = getSpacingMm(fixture);
+  const length = count > 0 ? (count - 1) * spacing : 0;
+  // Round to 2 decimals max, but avoid trailing zeros where possible
+  const rounded = Math.round(length * 100) / 100;
+  return String(rounded);
 }
 
 const panelStyle: React.CSSProperties = {
@@ -280,6 +219,16 @@ const closeBtnStyle: React.CSSProperties = {
   background: "transparent",
   color: "white",
   fontSize: 16,
+  cursor: "pointer",
+};
+
+const deleteBtnStyle: React.CSSProperties = {
+  border: "1px solid #7f1d1d",
+  background: "#991b1b",
+  color: "white",
+  fontSize: 12,
+  padding: "6px 10px",
+  borderRadius: 6,
   cursor: "pointer",
 };
 

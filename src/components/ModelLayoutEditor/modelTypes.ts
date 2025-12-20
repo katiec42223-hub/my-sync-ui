@@ -49,16 +49,53 @@ export const LED_TYPES: Record<string, LEDType> = {
   },
 };
 
+// Helicopter surface attachment model (for turn-key fuselage placement)
+export type SurfaceId =
+  | "CANOPY"
+  | "TAIL_BOOM"
+  | "TAIL_FIN"
+  | "SKID_PIPE_LEFT"
+  | "SKID_PIPE_RIGHT"
+  | "STRUT_FL"
+  | "STRUT_FR"
+  | "STRUT_RL"
+  | "STRUT_RR";
+
+export type Attachment =
+  | {
+      kind: "surface";
+      surfaceId: SurfaceId;
+
+      // Primary location on the surface (normalized 0..1)
+      centerU: number;
+      centerV?: number; // canopy only (optional elsewhere)
+
+      // Offsets in millimeters (small adjustments)
+      tangentialOffsetMm?: number;
+      lateralOffsetMm?: number;
+      normalOffsetMm?: number;
+
+      // Rotation around the surface normal (degrees)
+      angleDeg?: number;
+    }
+  | {
+      kind: "detached";
+    };
+
+
 export type FixtureVisualConfig = {
   fixtureId: string;
   layout: "linear" | "circle" | "wrapped" | "spline"; // how pixels are arranged
-  position: [number, number, number];      // x, y, z in meters
-  rotation: [number, number, number];      // euler angles (deg)
-  scale?: number;                          // optional length multiplier
-  circleRadius?: number;                   // if layout=circle
-  wrapAxis?: "x" | "y" | "z";             // if layout=wrapped
-   splinePoints?: Array<[number, number, number]>;
+    position: [number, number, number]; // x, y, z in meters
+  rotation: [number, number, number]; // euler angles (deg)
+  scale?: number; // optional length multiplier
+  circleRadius?: number; // if layout=circle
+  wrapAxis?: "x" | "y" | "z"; // if layout=wrapped
+  splinePoints?: Array<[number, number, number]>;
   splineTension?: number;
+
+  // If present, Visualizer3D can derive splinePoints automatically from the helicopter model.
+  attachment?: Attachment;
 };
 
 export type VisualizerConfig = {
@@ -90,7 +127,11 @@ export interface Fixture {
   orientation: Orientation;
   alignmentGroupIds: string[];
   
-  // LED specifications (ADD THESE THREE LINES)
+  
+  // Physical data flow direction for this strip
+  serialIn?: "START" | "END";
+
+  // LED specifications
   ledType: keyof typeof LED_TYPES;
   customSpacing?: number;    // for CUSTOM type only
   customDiameter?: number;   // for CUSTOM type only

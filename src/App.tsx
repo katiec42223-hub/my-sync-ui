@@ -46,7 +46,7 @@ export default function App() {
 
   // Positive delta = forward, negative = rewind
   const handleSeek = (deltaMs: number) => {
-    setPlayheadMs((prev) => Math.max(0, prev + deltaMs));
+    setPlayheadMs((p) => Math.max(0, p + deltaMs));
   };
 
   const playbackHandlers = {

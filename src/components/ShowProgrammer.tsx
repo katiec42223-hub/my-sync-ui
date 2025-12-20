@@ -544,7 +544,14 @@ useEffect(() => {
 
       {/* Right: Preview / Program panel */}
       <div style={{ padding: 12 }}>
-        <h3>Preview & Program</h3>
+        <h3>Preview & Program
+        <button
+          onClick={buildBlob}
+          style={{ marginRight: 8, padding: "6px 12px" }}
+        >
+          Show/Hide Reference
+          </button>
+          </h3>
 
         {/* USB Protocol Test Panel */}
         <div
