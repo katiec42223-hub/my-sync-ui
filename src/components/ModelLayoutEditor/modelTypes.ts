@@ -1,5 +1,6 @@
 // src/components/ModelLayoutEditor/modelTypes.ts
 
+
 export type Zone = "MAIN_BODY" | "TAIL_BOOM" | "TAIL_FIN" | "UNDEFINED_ZONE";
 
 export type Side = "LEFT" | "RIGHT" | "TOP" | "BOTTOM" | null;
@@ -49,6 +50,28 @@ export const LED_TYPES: Record<string, LEDType> = {
   },
 };
 
+// Helicopter physical attachment zones
+export type HeliZone =
+  | "canopy"
+  | "skidStrutFront"
+  | "skidStrutRear"
+  | "skidPipeL"
+  | "skidPipeR"
+  | "tailBoom"
+  | "tailFin";
+
+// Map OBJ mesh/group names to logical helicopter zones
+export const bodyNameToZone = (name: string): HeliZone | null => {
+  if (name === "Body97") return "canopy";
+  if (name === "Body1:5") return "skidStrutFront";
+  if (name === "Body1:3") return "skidStrutRear";
+  if (name === "Body1:2") return "skidPipeL";
+  if (name === "Body1:4") return "skidPipeR";
+  if (name === "Body1") return "tailBoom";
+  if (name === "Body1:1") return "tailFin";
+  return null;
+};
+
 // Helicopter surface attachment model (for turn-key fuselage placement)
 export type SurfaceId =
   | "CANOPY"
@@ -67,7 +90,7 @@ export type Attachment =
       surfaceId: SurfaceId;
 
       // Primary location on the surface (normalized 0..1)
-      centerU: number;
+      centerU?: number;
       centerV?: number; // canopy only (optional elsewhere)
 
       // Offsets in millimeters (small adjustments)

@@ -1,24 +1,3 @@
-// Helicopter physical attachment zones
-export type HeliZone =
-  | "canopy"
-  | "skidStrutFront"
-  | "skidStrutRear"
-  | "skidPipeL"
-  | "skidPipeR"
-  | "tailBoom"
-  | "tailFin";
-
-// Map OBJ mesh/group names to logical helicopter zones
-export const bodyNameToZone = (name: string): HeliZone | null => {
-  if (name === "Body97") return "canopy";
-  if (name === "Body1:5") return "skidStrutFront";
-  if (name === "Body1:3") return "skidStrutRear";
-  if (name === "Body1:2") return "skidPipeL";
-  if (name === "Body1:4") return "skidPipeR";
-  if (name === "Body1") return "tailBoom";
-  if (name === "Body1:1") return "tailFin";
-  return null;
-};
 
 export type SerialSnakeParams = {
   songId: string;

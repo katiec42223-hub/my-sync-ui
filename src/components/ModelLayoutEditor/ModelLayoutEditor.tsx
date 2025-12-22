@@ -287,7 +287,7 @@ const tabBtnStyle: React.CSSProperties = {
   padding: "8px 14px",
   background: "#2b2d31",
   borderRadius: 6,
-  border: "#3a3d42",
+  borderColor: "#3a3d42",
   color: "white",
 };
 
