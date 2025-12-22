@@ -299,8 +299,8 @@ function buildCanopyOverridePositions(args: {
   // Therefore:
   //   U (0..1) maps along +Z (longitudinal)
   //   V (0..1) maps along +X (lateral)
-  const longIdx: 0 | 1 | 2 = 2;   // Z
-  const latIdx: 0 | 1 | 2 = 0;    // X
+  const longIdx: 0 | 1 | 2 = 2; // Z
+  const latIdx: 0 | 1 | 2 = 0; // X
   const normalIdx: 0 | 1 | 2 = 1; // Y
 
   const longMin = box.min.getComponent(longIdx);
@@ -472,7 +472,11 @@ function buildCanopyOverridePositions(args: {
     uniqDirs.forEach(tryDir);
 
     if (candidates.length === 0) {
-      return { point: guessPoint.clone(), normal: normalAxis.clone(), snapped: false };
+      return {
+        point: guessPoint.clone(),
+        normal: normalAxis.clone(),
+        snapped: false,
+      };
     }
 
     candidates.sort(
@@ -483,7 +487,11 @@ function buildCanopyOverridePositions(args: {
 
     const best = candidates[0];
     if (best.point.distanceTo(guessPoint) > maxSnapDist) {
-      return { point: guessPoint.clone(), normal: normalAxis.clone(), snapped: false };
+      return {
+        point: guessPoint.clone(),
+        normal: normalAxis.clone(),
+        snapped: false,
+      };
     }
 
     const n = (getHitNormalWorld(best) || normalAxis.clone()).normalize();
@@ -520,11 +528,10 @@ function buildCanopyOverridePositions(args: {
   // Start at anchor point, then apply user offsets and re-project.
   let P0 = anchorHit ? anchorHit.point.clone() : anchorGuess.clone();
   let N0 = anchorHit
-    ? (getHitNormalWorld(anchorHit) || normalAxis.clone())
+    ? getHitNormalWorld(anchorHit) || normalAxis.clone()
     : normalAxis.clone();
   N0.normalize();
   if (N0.dot(normalAxis) < 0) N0.multiplyScalar(-1);
-
 
   // Desired direction in world-space (in the long/lat plane, rotated by angle).
   const desiredDirWorld = longAxis
@@ -538,9 +545,14 @@ function buildCanopyOverridePositions(args: {
   T0.add(N0.clone().multiplyScalar(-T0.dot(N0))).normalize();
   if (T0.lengthSq() < 1e-9) T0 = latAxis.clone();
   let B0 = new THREE.Vector3().crossVectors(N0, T0).normalize();
+  // Wrap constraint: LED tape resists twist/roll. Penalize candidates that require large
+  // rotation of the strip's binormal (width direction) relative to the anchor.
+  const WRAP_ROLL_WEIGHT = 1.25; // dimensionless; tuned against dist-to-guess in meters^2
+  const BRef0 = B0.clone().normalize();
 
   // Apply offsets at anchor.
-  if (tangentialOffsetM !== 0) P0.add(T0.clone().multiplyScalar(tangentialOffsetM));
+  if (tangentialOffsetM !== 0)
+    P0.add(T0.clone().multiplyScalar(tangentialOffsetM));
   if (lateralOffsetM !== 0) P0.add(B0.clone().multiplyScalar(lateralOffsetM));
 
   // Re-project anchor after offsets, and refresh normal.
@@ -566,163 +578,302 @@ function buildCanopyOverridePositions(args: {
   const iMid = Math.floor((pixelCount - 1) / 2);
   writeOutLocal(iMid, P0);
 
-  // LEFT SIDE (i<iMid): march using the SAME transported tangent as the right side,
-  // but step with a NEGATIVE distance. This keeps behavior symmetric and avoids
-  // degeneracy from flipping the direction vector.
-  //
-  // Key improvement: avoid “pile-up” when a projection misses by doing a small
-  // local search (lateral/normal nudges) and, if still missing, advancing a
-  // fallback guess so pixels do not collapse to the same position.
-  {
+  // // LEFT SIDE (i<iMid): march using the SAME transported tangent as the right side,
+  // // but step with a NEGATIVE distance. This keeps behavior symmetric and avoids
+  // // degeneracy from flipping the direction vector.
+  // //
+  // // Key improvement: avoid “pile-up” when a projection misses by doing a small
+  // // local search (lateral/normal nudges) and, if still missing, advancing a
+  // // fallback guess so pixels do not collapse to the same position.
+  // {
+  //   let P = P0.clone();
+  //   let N = N0.clone().normalize();
+  //   let T = T0.clone().normalize(); // keep the same "forward" tangent
+  //   let B = new THREE.Vector3().crossVectors(N, T).normalize();
+
+  //   for (let i = iMid - 1; i >= 0; i--) {
+  //     let step = spacingM;
+  //     let bestHit: ProjectNearResult | null = null;
+
+  //     for (let attempt = 0; attempt < 6; attempt++) {
+  //       // Base step "backwards" along tangent
+  //       const base = P.clone().add(T.clone().multiplyScalar(-step));
+
+  //       // Try a small set of nearby guesses to keep the march attached on tight curvature.
+  //       // Offsets are proportional to step so the search naturally shrinks as we halve step.
+  //       const lateral = Math.min(step * 0.75, spacingM * 1.25);
+  //       const normalNudge = Math.min(step * 0.75, spacingM * 1.25);
+
+  //       const guesses: THREE.Vector3[] = [
+  //         base,
+  //         base.clone().add(B.clone().multiplyScalar(+lateral)),
+  //         base.clone().add(B.clone().multiplyScalar(-lateral)),
+  //         base.clone().add(N.clone().multiplyScalar(+normalNudge)),
+  //         base.clone().add(N.clone().multiplyScalar(-normalNudge)),
+  //       ];
+
+  //       let candidate: ProjectNearResult | null = null;
+  //       let candidateDist = Infinity;
+
+  //       for (const g of guesses) {
+  //         const h = projectNear(g, N, [T, B]);
+  //         if (!h.snapped) continue;
+  //         const d = h.point.distanceToSquared(base);
+  //         if (d < candidateDist) {
+  //           candidate = h;
+  //           candidateDist = d;
+  //         }
+  //       }
+
+  //       if (candidate) {
+  //         bestHit = candidate;
+  //         break;
+  //       }
+
+  //       // If no candidate snapped, shrink step and try again.
+  //       step *= 0.5;
+  //     }
+
+  //     if (!bestHit) {
+  //       // Hard fallback: advance a guess so pixels don't stack.
+  //       const Pfallback = P.clone().add(T.clone().multiplyScalar(-spacingM));
+  //       writeOutLocal(i, Pfallback);
+  //       P = Pfallback;
+  //       continue;
+  //     }
+
+  //     let Pn = bestHit.point;
+  //     let Nn = bestHit.normal.clone().normalize();
+
+  //     // Keep normal orientation consistent.
+  //     if (Nn.dot(N) < 0) Nn.multiplyScalar(-1);
+
+  //     // Parallel transport the tangent: project previous tangent into the new tangent plane.
+  //     let Tn = T.clone();
+  //     Tn.add(Nn.clone().multiplyScalar(-Tn.dot(Nn)));
+
+  //     if (Tn.lengthSq() < 1e-9) {
+  //       // Fallback: re-project the original desired direction into the new plane.
+  //       Tn = desiredDirWorld.clone();
+  //       Tn.add(Nn.clone().multiplyScalar(-Tn.dot(Nn)));
+  //       if (Tn.lengthSq() < 1e-9) Tn = latAxis.clone();
+  //     }
+
+  //     Tn.normalize();
+
+  //     // Prevent occasional 180° flips from numerical noise.
+  //     if (Tn.dot(T) < 0) Tn.multiplyScalar(-1);
+
+  //     // Apply user normal offset if requested.
+  //     if (normalOffsetM !== 0) {
+  //       Pn = Pn.clone().add(Nn.clone().multiplyScalar(normalOffsetM));
+  //     }
+
+  //     writeOutLocal(i, Pn);
+
+  //     // Advance.
+  //     P = Pn;
+  //     N = Nn;
+  //     T = Tn;
+  //     B = new THREE.Vector3().crossVectors(N, T).normalize();
+  //   }
+  // }
+
+  // RIGHT/LEFT SIDE (shared): marching wrap.
+  // We advance point-by-point, updating the tangent by parallel transport.
+  // The left side is literally the same as the right side, with dirSign = -1 and
+  // the index direction reversed.
+  const marchSide = (
+    dirSign: 1 | -1,
+    iStart: number,
+    iEndExclusive: number,
+    iStep: 1 | -1
+  ) => {
+    type BestCandidate = {
+      hit: ProjectNearResult;
+      Nn: THREE.Vector3;
+      Tn: THREE.Vector3;
+      Bn: THREE.Vector3;
+      bDot: number;
+      rollPenalty: number;
+      score: number;
+    };
+
+    const sideLabel = dirSign === 1 ? "R" : "L";
+
     let P = P0.clone();
     let N = N0.clone().normalize();
-    let T = T0.clone().normalize(); // keep the same "forward" tangent
+    let T = T0.clone().normalize();
     let B = new THREE.Vector3().crossVectors(N, T).normalize();
 
-    for (let i = iMid - 1; i >= 0; i--) {
+    for (let i = iStart; i !== iEndExclusive; i += iStep) {
       let step = spacingM;
-      let bestHit: ProjectNearResult | null = null;
+      let hit: ProjectNearResult | null = null;
+      let chosen: BestCandidate | null = null;
+
+      // Guard against "pile-up" / overlap with the previous pixel.
+      const minPrevDist = spacingM * 0.35;
 
       for (let attempt = 0; attempt < 6; attempt++) {
-        // Base step "backwards" along tangent
-        const base = P.clone().add(T.clone().multiplyScalar(-step));
+        const base = P.clone().add(T.clone().multiplyScalar(dirSign * step));
+        // Use a stable lateral direction to avoid accumulating roll on one side.
+        // Project the anchor binormal into the current tangent plane.
+        let BGuide = BRef0.clone()
+          .add(N.clone().multiplyScalar(-BRef0.dot(N)))
+          .normalize();
+        if (BGuide.lengthSq() < 1e-9) BGuide = B.clone();
 
-        // Try a small set of nearby guesses to keep the march attached on tight curvature.
-        // Offsets are proportional to step so the search naturally shrinks as we halve step.
+        // Local search cloud around the base guess. Helps on tight curvature.
         const lateral = Math.min(step * 0.75, spacingM * 1.25);
         const normalNudge = Math.min(step * 0.75, spacingM * 1.25);
 
         const guesses: THREE.Vector3[] = [
           base,
-          base.clone().add(B.clone().multiplyScalar(+lateral)),
-          base.clone().add(B.clone().multiplyScalar(-lateral)),
+          base.clone().add(BGuide.clone().multiplyScalar(+lateral)),
+          base.clone().add(BGuide.clone().multiplyScalar(-lateral)),
           base.clone().add(N.clone().multiplyScalar(+normalNudge)),
           base.clone().add(N.clone().multiplyScalar(-normalNudge)),
         ];
 
-        let candidate: ProjectNearResult | null = null;
-        let candidateDist = Infinity;
+        let best: BestCandidate | null = null;
+        let bestScore = Infinity;
 
         for (const g of guesses) {
-          const h = projectNear(g, N, [T, B]);
+          const h = projectNear(g, N, [T, BGuide]);
           if (!h.snapped) continue;
-          const d = h.point.distanceToSquared(base);
-          if (d < candidateDist) {
-            candidate = h;
-            candidateDist = d;
+
+          // Reject candidates that would overlap / nearly overlap the previous pixel.
+          const dPrev = h.point.distanceTo(P);
+          if (dPrev < minPrevDist) continue;
+
+          // Compute candidate frame.
+          // First, stabilize normal orientation.
+          let Nn = h.normal.clone().normalize();
+          if (Nn.dot(N) < 0) Nn.multiplyScalar(-1);
+
+          // Roll-locked frame: keep the strip's binormal (width direction) aligned with the anchor.
+          // We do this by projecting BRef0 into the candidate tangent plane, then deriving Tn from it.
+          let BLock = BRef0.clone().add(
+            Nn.clone().multiplyScalar(-BRef0.dot(Nn))
+          );
+
+          let Tn: THREE.Vector3;
+          let Bn: THREE.Vector3;
+
+          if (BLock.lengthSq() > 1e-9) {
+            BLock.normalize();
+
+            // T = B x N (so that B = N x T)
+            Tn = new THREE.Vector3().crossVectors(BLock, Nn).normalize();
+            if (Tn.lengthSq() < 1e-9) Tn = T.clone();
+
+            // Keep direction continuity.
+            if (Tn.dot(T) < 0) Tn.multiplyScalar(-1);
+
+            Bn = new THREE.Vector3().crossVectors(Nn, Tn).normalize();
+          } else {
+            // Fallback: parallel-transport tangent into the new tangent plane.
+            Tn = T.clone();
+            Tn.add(Nn.clone().multiplyScalar(-Tn.dot(Nn)));
+            if (Tn.lengthSq() < 1e-9) {
+              Tn = desiredDirWorld.clone();
+              Tn.add(Nn.clone().multiplyScalar(-Tn.dot(Nn)));
+              if (Tn.lengthSq() < 1e-9) Tn = latAxis.clone();
+            }
+            Tn.normalize();
+            if (Tn.dot(T) < 0) Tn.multiplyScalar(-1);
+
+            Bn = new THREE.Vector3().crossVectors(Nn, Tn).normalize();
+          }
+
+          // Roll/twist penalty: prefer candidates whose binormal stays aligned with anchor binormal.
+          const bDot = Bn.dot(BRef0);
+          const rollPenalty = 1 - Math.abs(bDot);
+
+          const dBase = h.point.distanceToSquared(base);
+
+          // Combine geometric closeness + twist penalty.
+          // dBase is meters^2; scale roll penalty into meters^2 using spacing^2.
+          const score =
+            dBase +
+            WRAP_ROLL_WEIGHT *
+              (rollPenalty * rollPenalty) *
+              (spacingM * spacingM);
+
+          if (score < bestScore) {
+            bestScore = score;
+            best = { hit: h, Nn, Tn, Bn, bDot, rollPenalty, score };
           }
         }
 
-        if (candidate) {
-          bestHit = candidate;
+        if (best) {
+          hit = best.hit;
+          chosen = best;
           break;
         }
 
-        // If no candidate snapped, shrink step and try again.
         step *= 0.5;
       }
 
-      if (!bestHit) {
-        // Hard fallback: advance a guess so pixels don't stack.
-        const Pfallback = P.clone().add(T.clone().multiplyScalar(-spacingM));
+      if (!hit || !chosen) {
+        // Fallback: advance so we never stack pixels at the same coordinate.
+        let Pfallback = P.clone().add(
+          T.clone().multiplyScalar(dirSign * spacingM)
+        );
+        if (normalOffsetM !== 0) {
+          Pfallback = Pfallback.clone().add(
+            N.clone().multiplyScalar(normalOffsetM)
+          );
+        }
+
         writeOutLocal(i, Pfallback);
+
+        // Only wrap log we keep: idx, side, rollPenalty, and Bn·B0 (using current frame for fallback).
+        const bDot = B.dot(BRef0);
+        const rollPenalty = 1 - Math.abs(bDot);
+        console.log(
+          `[WRAP] idx=${i} side=${sideLabel} rollPenalty=${rollPenalty.toFixed(
+            4
+          )} BnDotB0=${bDot.toFixed(4)}`
+        );
+
         P = Pfallback;
         continue;
       }
 
-      let Pn = bestHit.point;
-      let Nn = bestHit.normal.clone().normalize();
+      let Pn = chosen.hit.point.clone();
+      let Nn = chosen.Nn.clone().normalize();
+      let Tn = chosen.Tn.clone().normalize();
+      let Bn = chosen.Bn.clone().normalize();
+      const bDot = chosen.bDot;
+      const rollPenalty = chosen.rollPenalty;
 
-      // Keep normal orientation consistent.
-      if (Nn.dot(N) < 0) Nn.multiplyScalar(-1);
-
-      // Parallel transport the tangent: project previous tangent into the new tangent plane.
-      let Tn = T.clone();
-      Tn.add(Nn.clone().multiplyScalar(-Tn.dot(Nn)));
-
-      if (Tn.lengthSq() < 1e-9) {
-        // Fallback: re-project the original desired direction into the new plane.
-        Tn = desiredDirWorld.clone();
-        Tn.add(Nn.clone().multiplyScalar(-Tn.dot(Nn)));
-        if (Tn.lengthSq() < 1e-9) Tn = latAxis.clone();
-      }
-
-      Tn.normalize();
-
-      // Prevent occasional 180° flips from numerical noise.
-      if (Tn.dot(T) < 0) Tn.multiplyScalar(-1);
-
-      // Apply user normal offset if requested.
       if (normalOffsetM !== 0) {
         Pn = Pn.clone().add(Nn.clone().multiplyScalar(normalOffsetM));
       }
 
       writeOutLocal(i, Pn);
 
+      // Only wrap log we keep: idx, side, rollPenalty, and Bn·B0.
+      console.log(
+        `[WRAP] idx=${i} side=${sideLabel} rollPenalty=${rollPenalty.toFixed(
+          4
+        )} BnDotB0=${bDot.toFixed(4)}`
+      );
+
       // Advance.
       P = Pn;
       N = Nn;
       T = Tn;
-      B = new THREE.Vector3().crossVectors(N, T).normalize();
+      B = Bn;
     }
-  }
+  };
 
-  // RIGHT SIDE (k>=0): one-sided marching wrap.
-  // We advance point-by-point, updating the tangent by parallel transport.
-  let P = P0.clone();
-  let N = N0.clone().normalize();
-  let T = T0.clone().normalize();
-  let B = new THREE.Vector3().crossVectors(N, T).normalize();
+  // Right side: forward indices, forward direction.
+  marchSide(+1, iMid + 1, pixelCount, +1);
 
-  for (let i = iMid + 1; i < pixelCount; i++) {
-    // Step forward along current tangent.
-    let step = spacingM;
-    let hit: ProjectNearResult | null = null;
-
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const guess = P.clone().add(T.clone().multiplyScalar(step));
-      const h = projectNear(guess, N, [T, B]);
-      if (h.snapped) {
-        hit = h;
-        break;
-      }
-      step *= 0.5;
-    }
-
-    if (!hit) {
-      writeOutLocal(i, P);
-      continue;
-    }
-
-    let Pn = hit.point;
-    let Nn = hit.normal.clone().normalize();
-
-    // Keep normal orientation consistent.
-    if (Nn.dot(N) < 0) Nn.multiplyScalar(-1);
-
-    // Parallel transport the tangent: project previous tangent into the new tangent plane.
-    let Tn = T.clone();
-    Tn.add(Nn.clone().multiplyScalar(-Tn.dot(Nn)));
-    if (Tn.lengthSq() < 1e-9) {
-      // Fallback if tangent degenerates: re-project desired dir into new plane.
-      Tn = desiredDirWorld.clone();
-      Tn.add(Nn.clone().multiplyScalar(-Tn.dot(Nn)));
-    }
-    Tn.normalize();
-
-    // Apply user normal offset if requested.
-    if (normalOffsetM !== 0) {
-      Pn = Pn.clone().add(Nn.clone().multiplyScalar(normalOffsetM));
-    }
-
-    writeOutLocal(i, Pn);
-
-    // Advance.
-    P = Pn;
-    N = Nn;
-    T = Tn;
-    B = new THREE.Vector3().crossVectors(N, T).normalize();
-  }
+  // Left side: reverse indices, reverse direction.
+  marchSide(-1, iMid - 1, -1, -1);
 
   return out;
 }
@@ -777,7 +928,7 @@ function Scene({
         <HelicopterReferenceModel
           show={showHeliReference ?? true}
           mode={heliReferenceMode ?? "mesh"}
-                    onCanopyMeshes={setCanopyMeshes}
+          onCanopyMeshes={setCanopyMeshes}
         />
       </Suspense>
 
@@ -786,7 +937,9 @@ function Scene({
         if (!fixture || !fixture.pixelCount) return null;
 
         const colors = pixelColors.get(visualConfig.fixtureId) || [];
-        const att = visualConfig.attachment as ModelTypes.Attachment | undefined;
+        const att = visualConfig.attachment as
+          | ModelTypes.Attachment
+          | undefined;
 
         if (
           att &&
@@ -830,14 +983,14 @@ function Scene({
             circleRadius={visualConfig.circleRadius}
             splinePoints={visualConfig.splinePoints}
             splineTension={visualConfig.splineTension}
-                        colors={colors}
+            colors={colors}
             // colors={pixelColors.get(visualConfig.fixtureId) || []}
           />
         );
       })}
 
       <OrbitControls ref={controlsRef} makeDefault />
-            {/* Axis helper in bottom-right */}
+      {/* Axis helper in bottom-right */}
 
       <GizmoHelper alignment="bottom-right" margin={[80, 80]}>
         <GizmoViewport
