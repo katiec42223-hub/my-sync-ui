@@ -36,18 +36,68 @@ Think: **DaVinci Resolve meets Ableton Live**, but for programming addressable L
 ### Controllers (2 per helicopter)
 | Controller | Purpose | MCU | LED Type |
 |---|---|---|---|
-| Fuselage Controller | Body, landing gear, canopy LEDs | RP2040 (Pico), 133MHz, 264KB SRAM | WS2812B |
+| Fuselage Controller | Body LEDs (4 zones), IR LED, RC input, servo output | RP2040 (Pico), 133MHz, 264KB SRAM | WS2812B |
 | Rotor Controller | Rotor disk top + bottom blades | RP2040 (Pico), 133MHz, 264KB SRAM | SK9822 (4 parallel PIO lanes) |
 
 ### External Flash
-Both controllers use **S25FL256S 32MB SPI flash** for show file storage (not internal flash). Show files are stored in this external flash and played back standalone.
+Both controllers use **S25FL256S 32MB SPI flash** for show file storage. Show files are stored in external flash and played back standalone.
+
+### Fuselage Controller Functions
+| Function | GPIO | Notes |
+|---|---|---|
+| WS2812B Zone 1–4 | 4 dedicated GPIOs | One GPIO per zone — zones are model config, not hardcoded |
+| RC input (show start) | 1 GPIO | Reads PWM now; firmware-configurable for XBUS/SBUS/other protocols in future |
+| PWM servo output | 1 GPIO | Configurable frequency + pulse width range; used for smoke pump, confetti, accessories |
+| IR LED (38kHz) | 1 GPIO | Always-on 38kHz carrier; mounted on tail boom; provides angular index for blade controller |
+| USB serial | — | Upload protocol — same as blade controller (HELLO/ERASE/WRITE/VERIFY/START) |
+| SPI flash | GP6–GP9 | Same pinout as blade controller (TBC from fuselage schematic) |
+
+### Fuselage LED Zones
+- Up to 4 independent WS2812B zones
+- Each zone has its own GPIO output (parallel, not chained)
+- Zone assignment (body / landing gear / canopy / tail) is defined in model config — not hardcoded in firmware
+- Zones are user-configurable per model setup in the UI
+- Canopy and other removable parts can be plugged into individual zone ports rather than chained
+
+### Servo / Accessory Output
+- Standard RC servo signal (configurable frequency + pulse width range)
+- Primary use: smoke pump control
+- Secondary uses: confetti drop, other pilot accessories
+- Configured per model in `.syncmodel` with label, min/max labels, default value
+
+### Smoke Pump Delay Compensation
+The smoke pump has a physical delay between command and visible smoke output. This delay is compensated in the **backend**, not in the timeline UI:
+- User places smoke events in the timeline at the visually desired time
+- Model config stores `delayCompensationMs` for the servo channel
+- At export/upload time, the firmware builder shifts servo commands earlier by `delayCompensationMs`
+- The timeline always shows smoke at the intended visible time — the compensation is invisible to the user
+- A dedicated setup page in the UI allows the user to measure and configure this delay per model
 
 ### LED Zones
 - Fuselage body
 - Landing gear
 - Canopy / cockpit
-- Rotor disk top
-- Rotor disk bottom
+- Rotor disk top (one blade)
+- Rotor disk bottom (one blade)
+
+### Rotor Blade LED Geometry
+| Property | Value |
+|---|---|
+| Number of blades | 2 |
+| LEDs per blade | 72 pixels |
+| Segments per blade | 2 × 36 pixels |
+| Total rotor pixels | 144 (72 top blade + 72 bottom blade) |
+| Pixel density | 144 pixels/meter |
+| Pixel pitch | ~6.9mm |
+| Blade layout | One blade has LEDs on TOP face only, the other has LEDs on BOTTOM face only |
+| Segmentation reason | Two 36px segments per blade (vs one 72px chain) maximizes PIO refresh rate |
+
+**LED Strip:** BTF-LIGHTING SK9822, 144px/m, 5V DC, SPI (CLK + DATA), APA102C compatible  
+**Part:** Amazon B07BPX2KFD  
+**Specs:** 8-bit per channel (24-bit RGB), 5-bit global brightness register, constant current control, 60mA max per pixel, ~43W/m at full brightness
+
+### Why Split Into 2×36 Segments?
+The PIO drives 4 parallel lanes simultaneously. Each lane drives one 36px segment independently. This means a full frame update across all 144 rotor pixels takes only as long as updating 36 pixels on one lane — roughly 4× faster than a single 144px chain. At 2,400 RPM with 3° slices (120 slices/rev), each slice window is ~0.77ms. A 36px SK9822 update over SPI at the PIO clock rate takes well under 0.1ms, leaving ample margin.
 
 ### Communication
 - **Upload method:** USB Serial (both controllers, potentially simultaneously)
@@ -69,37 +119,66 @@ Current hardware uses core components suitable for POC. Size/weight optimization
 
 ## 4. Data Models
 
-### Song
-```typescript
-Song {
-  id: string
-  description: string
-  tempo: number // BPM
-}
-```
+### File Format Architecture
+Three file types, all JSON, structured so the two component files are copy/paste subsets of the project file:
 
-### ShowEvent
-```typescript
-ShowEvent {
-  id: string
-  songId: string
-  durationMs: number
-  func: string           // references functions/registry.ts
-  payload: FuncParams    // function-specific parameters
-  blade: boolean         // applies to rotor
-  fuselage: boolean      // applies to fuselage
-}
-```
+| File | Extension | Contains | Use Case |
+|---|---|---|---|
+| Project file | `.syncproj` | Model config + Show data | Default save — opens everything at once |
+| Model config | `.syncmodel` | Hardware layout, zones, pixel counts, RC config, servo config | Reuse same model across multiple shows |
+| Show file | `.syncshow` | Timeline events, patterns, songs, brightness overlays | Reuse same show on a different model |
 
-### Project File (.syncproj)
+**Key rule:** A `.syncproj` file is essentially a pointer/container — it references or embeds a model config and a show. Opening a project file loads both components. The app auto-saves the two component files alongside the project file so they always stay in sync.
+
+**Cross-reuse workflow:**
+- Program a new show → select existing model config → saves as new `.syncshow` + new `.syncproj`
+- Port a show to a new helicopter → select existing show → select new model config → saves new `.syncproj`
+- Share just a show or just a model config independently
+
+### Model Config (`.syncmodel`)
 ```json
 {
-  "formatVersion": "...",
-  "meta": {},
-  "layout": {},         // fixtures, channels, alignmentGroups, visualizerConfig
+  "formatVersion": "1.0",
+  "meta": { "modelName", "created", "appName" },
+  "hardware": {
+    "rcInput": { "gpio", "protocol": "pwm|xbus|sbus|...", "startChannel", "startThreshold" },
+    "servoOutput": { "gpio", "frequency", "minUs", "maxUs", "defaultUs" },
+    "irLed": { "gpio" },
+    "ledZones": [
+      { "id", "name", "gpio", "pixelCount", "type": "ws2812b|sk9822" }
+    ]
+  },
+  "layout": { "fixtures", "channels", "alignmentGroups", "visualizerConfig" },
+  "servoConfig": {
+    "delayCompensationMs": 0,
+    "label": "Smoke pump",
+    "minLabel": "Off",
+    "maxLabel": "Full"
+  }
+}
+```
+
+### Show (`.syncshow`)
+```json
+{
+  "formatVersion": "1.0",
+  "meta": { "showName", "created", "appName" },
   "songs": [],
   "events": [],
-  "soundtrack": {}
+  "brightnessOverlays": [],
+  "soundtrack": ""
+}
+```
+
+### Project File (`.syncproj`)
+```json
+{
+  "formatVersion": "1.0",
+  "meta": { "created", "appName" },
+  "modelRef": "path/to/model.syncmodel",
+  "showRef": "path/to/show.syncshow",
+  "model": { /* embedded copy of .syncmodel contents */ },
+  "show": { /* embedded copy of .syncshow contents */ }
 }
 ```
 
@@ -125,6 +204,41 @@ Each function:
 | direction | Enum | e.g. left, right, up, down, clockwise |
 | transition | Enum | `smooth` or `beat-jump` |
 | duration | Number (beats) | How long this event runs |
+| brightness | 0–31 (5-bit) | SK9822 global brightness register — separate from RGB, no color resolution loss |
+
+### Brightness as a First-Class Effect
+The SK9822 has a dedicated 5-bit global brightness register (0–31) per pixel, independent of the 8-bit RGB channels. This means brightness can be animated without touching color values and without losing color resolution.
+
+This enables an entire category of **brightness-only effects** where the pixel geometry stays static and only intensity changes:
+
+| Effect Type | Description |
+|---|---|
+| `brightness_pulse` | Single flash on a beat, decays smoothly between beats |
+| `brightness_wave` | Sinusoidal brightness ripple across pixels |
+| `brightness_step` | Hard cut between two brightness levels on beat subdivisions |
+| `brightness_strobe` | Rapid on/off at a defined note value |
+| `brightness_envelope` | Attack/decay/sustain/release shape tied to musical phrase length |
+
+**Brightness Two-Tier Architecture:**
+
+**Tier 1 — Static brightness (per function, always present)**
+- Every function exposes a `brightness` parameter: 10–100% (user-facing)
+- Backend scales: 10–100% → SK9822 register 0–31
+- Minimum 10% (not 0%) to prevent accidentally invisible effects
+- Always active — no overlay required for a complete show
+
+**Tier 2 — Brightness overlay track (optional, overrides Tier 1)**
+- A dedicated track in the timeline editor sitting above all pixel effect tracks
+- When a brightness effect is placed on the overlay track, it overrides Tier 1 for that time range
+- When the overlay track is empty, Tier 1 static value is used as-is
+- Overlay effects: `brightness_pulse`, `brightness_wave`, `brightness_step`, `brightness_strobe`, `brightness_envelope`
+- A show with no overlay track still looks complete — overlay is enhancement, not requirement
+
+**Key architectural implications:**
+- `buildTimeline()` output must carry a `brightness` value (0–31) per frame alongside `pixelsOn[]`
+- The timeline compositor must resolve: overlay value if present, else function static value
+- Brightness overlay is computationally cheap — no pixel geometry recalculation, just register writes
+- Detail design deferred — document here when timeline engine design begins
 
 ### Function-Specific Parameters
 Many functions have unique parameters that only apply to them. These must be defined per function in the registry descriptor.
