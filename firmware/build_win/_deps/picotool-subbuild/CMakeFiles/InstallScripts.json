@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"C:/syncui/firmware/build_win/_deps/picotool-subbuild/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

@@ -1,0 +1,7 @@
+C:/syncui/firmware/build_xbus/_deps/picotool/picotool.exe
+C:/syncui/firmware/build_xbus/_deps/picotool/picotoolTargets.cmake
+C:/syncui/firmware/build_xbus/_deps/picotool/picotoolTargets-release.cmake
+C:/syncui/firmware/build_xbus/_deps/picotool/picotoolConfig.cmake
+C:/syncui/firmware/build_xbus/_deps/picotool/picotoolConfigVersion.cmake
+C:/syncui/firmware/build_xbus/_deps/picotool/enc_bootloader.elf
+C:/syncui/firmware/build_xbus/_deps/picotool/enc_bootloader_mbedtls.elf

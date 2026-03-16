@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use tauri::{self, Manager, State};
+use tauri::{self, State};
 use serialport::{SerialPort, SerialPortType};
 mod protocol;
 use protocol::{CommandId, Frame, HelloResponse, ResponseId, VerifyResponse};
@@ -27,10 +27,17 @@ fn list_ports() -> Vec<String> {
 
 #[tauri::command]
 fn connect(state: State<Shared>, port: String, baud: u32) -> Result<(), String> {
-  let sp = serialport::new(&port, baud)
-    .timeout(std::time::Duration::from_millis(500))
+  let mut sp = serialport::new(&port, baud)
+    .timeout(std::time::Duration::from_millis(2000))
     .open()
     .map_err(|e| format!("open failed: {e}"))?;
+
+  // Improve USB CDC reliability on Windows after open.
+  let _ = sp.write_data_terminal_ready(true);
+  let _ = sp.write_request_to_send(true);
+  let _ = sp.set_timeout(std::time::Duration::from_millis(2000));
+  let _ = sp.clear(serialport::ClearBuffer::All);
+
   let mut s = state.lock().map_err(|_| "lock failed")?;
   s.port = Some(sp);
   s.name = Some(port);
@@ -147,19 +154,52 @@ fn send_start(state: State<Shared>) -> Result<(), String> {
   let mut s = state.lock().map_err(|_| "lock failed")?;
   let port = s.port.as_mut().ok_or("not connected")?;
 
-  let frame = Frame::new(CommandId::Start, vec![]);
-  let bytes = frame.to_bytes();
-  port.write_all(&bytes).map_err(|e| format!("write: {e}"))?;
-  port.flush().map_err(|e| format!("flush: {e}"))?;
+  // Compatibility: try modern START first (0x14, empty payload),
+  // then legacy START used by older test firmware (0x20, t0_ms u32 payload).
+  let variants: [(u8, Vec<u8>); 2] = [
+    (CommandId::Start as u8, vec![]),
+    (0x20, vec![0x00, 0x00, 0x00, 0x00]),
+  ];
 
-  let resp = Frame::from_reader(port.as_mut())?;
-  let resp_id = ResponseId::try_from(resp.cmd)?;
-  
-  if resp_id != ResponseId::Ok {
-    return Err("start failed".into());
+  let mut last_error = String::from("no response");
+
+  for (cmd, payload) in variants {
+    let frame = Frame { cmd, payload };
+    let bytes = frame.to_bytes();
+
+    match port.write_all(&bytes).map_err(|e| format!("write: {e}")) {
+      Ok(()) => {}
+      Err(e) => {
+        last_error = e;
+        continue;
+      }
+    }
+
+    if let Err(e) = port.flush().map_err(|e| format!("flush: {e}")) {
+      last_error = e;
+      continue;
+    }
+
+    match Frame::from_reader(port.as_mut()) {
+      Ok(resp) => match ResponseId::try_from(resp.cmd) {
+        Ok(ResponseId::Ok) => return Ok(()),
+        Ok(other) => {
+          last_error = format!("unexpected response: {:?}", other);
+        }
+        Err(e) => {
+          last_error = e;
+        }
+      },
+      Err(e) => {
+        last_error = e;
+      }
+    }
   }
 
-  Ok(())
+  Err(format!(
+    "start failed (tried modern 0x14 and legacy 0x20): {}",
+    last_error
+  ))
 }
 
 #[tauri::command]

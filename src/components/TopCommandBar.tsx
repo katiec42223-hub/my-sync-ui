@@ -23,7 +23,7 @@ type Props = {
   timeMs?: number;
 };
 
-const usbRegex = /(usb(modem|serial)|cu\.usb|tty\.usb)/i;
+const usbRegex = /(usb(modem|serial)|cu\.usb|tty\.usb|^com\d+$)/i;
 
 function TopbarMenu({
   label,
@@ -115,9 +115,17 @@ export default function TopCommandBar({
     try {
       const p = await invoke<string[]>("list_ports");
       setPorts(p);
-      if (!selectedPort) {
-        const firstUsb = p.find((name) => usbRegex.test(name));
-        setSelectedPort(firstUsb ?? p[0] ?? "");
+      const firstUsb = p.find((name) => usbRegex.test(name));
+      const fallback = firstUsb ?? p[0] ?? "";
+
+      if (!p.includes(selectedPort)) {
+        setSelectedPort(fallback);
+      }
+      if (!p.includes(selectedFuselagePort)) {
+        setSelectedFuselagePort(fallback);
+      }
+      if (!p.includes(selectedBladePort)) {
+        setSelectedBladePort(fallback);
       }
     } catch (e) {
       console.error("list_ports failed:", e);
@@ -130,7 +138,8 @@ export default function TopCommandBar({
 
   const filteredPorts = useMemo(() => {
     if (showNonUsb) return ports;
-    return ports.filter((p) => usbRegex.test(p));
+    const usbLike = ports.filter((p) => usbRegex.test(p));
+    return usbLike.length > 0 ? usbLike : ports;
   }, [ports, showNonUsb]);
 
   async function handleConnect() {
@@ -138,16 +147,44 @@ export default function TopCommandBar({
     setBusy(true);
     setStatus("busy");
     try {
-      // Implement this command on the Rust side later.
-      // Example signature: connect(port: String, baud: u32)
       await invoke("connect", { port: selectedPort, baud: 115200 });
-      // Optional sanity ping:
-      const hello = await invoke<any>("hello").catch(() => undefined);
-      console.log("HELLO:", hello);
+
+      // Verify real protocol communication before reporting success.
+      const sleep = (ms: number) =>
+        new Promise((resolve) => window.setTimeout(resolve, ms));
+
+      let hello: any | undefined;
+      let lastError: unknown;
+
+      // Some Pico USB CDC endpoints need a short settle time after open.
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          if (attempt > 0) {
+            await sleep(200 * attempt);
+          }
+          hello = await invoke<any>("send_hello");
+          break;
+        } catch (e) {
+          lastError = e;
+        }
+      }
+
+      if (!hello) {
+        throw lastError ?? new Error("HELLO verification failed");
+      }
+
+      const fw = hello.fw ?? hello.fw_version ?? "?";
+      const proto = hello.proto ?? hello.proto_version ?? "?";
+      const targetName = hello.target ?? hello.role ?? "unknown";
+
+      console.log(
+        `Successfully connected: ${targetName} v${fw} (proto ${proto})`
+      );
       setConnected(true);
       setStatus("ok");
     } catch (e) {
-      console.error("connect failed:", e);
+      console.error("connect verification failed:", e);
+      await invoke("disconnect").catch(() => undefined);
       setConnected(false);
       setStatus("err");
     } finally {
@@ -373,6 +410,15 @@ export default function TopCommandBar({
         </label>
 
         <button
+          onClick={refreshPorts}
+          disabled={busy}
+          style={refreshBtnStyle}
+          title="Refresh available COM/serial ports"
+        >
+          ⟲
+        </button>
+
+        <button
           onClick={connected ? handleDisconnect : handleConnect}
           disabled={!selectedPort || busy}
           style={{ marginLeft: 12 }}
@@ -470,6 +516,17 @@ const primaryBtnStyle: React.CSSProperties = {
   borderRadius: 8,
   border: "none",
   fontWeight: 600,
+};
+
+const refreshBtnStyle: React.CSSProperties = {
+  marginLeft: 8,
+  width: 28,
+  height: 28,
+  padding: 0,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  lineHeight: 1,
 };
 
 // show dropdown on hover (tiny CSS helper)

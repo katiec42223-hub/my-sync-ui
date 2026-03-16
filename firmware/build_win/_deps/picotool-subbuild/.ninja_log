@@ -1,0 +1,21 @@
+# ninja log v7
+2	74	7933865411538463	picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-mkdir	70b5aae5f0549f16
+2	74	7933865411538463	C:/syncui/firmware/build_win/_deps/picotool-subbuild/picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-mkdir	70b5aae5f0549f16
+75	3772	7933865448518179	picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-download	e610e735d235d014
+75	3772	7933865448518179	C:/syncui/firmware/build_win/_deps/picotool-subbuild/picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-download	e610e735d235d014
+3772	3954	7933865448598907	picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-update	d8dd1d3f6244d07a
+3772	3954	7933865448598907	C:/syncui/firmware/build_win/_deps/picotool-subbuild/picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-update	d8dd1d3f6244d07a
+3954	4023	7933865451023840	picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-patch	803cec4d6ccdad5e
+3954	4023	7933865451023840	C:/syncui/firmware/build_win/_deps/picotool-subbuild/picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-patch	803cec4d6ccdad5e
+4023	4094	7933865451742582	picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-configure	d262e580c0c93fa1
+4023	4094	7933865451742582	C:/syncui/firmware/build_win/_deps/picotool-subbuild/picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-configure	d262e580c0c93fa1
+4094	4165	7933865452446325	picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-build	27924034a0b9a553
+4094	4165	7933865452446325	C:/syncui/firmware/build_win/_deps/picotool-subbuild/picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-build	27924034a0b9a553
+4165	4234	7933865453142067	picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-install	3cfe14b424b1063d
+4165	4234	7933865453142067	C:/syncui/firmware/build_win/_deps/picotool-subbuild/picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-install	3cfe14b424b1063d
+4234	4303	7933865453828522	picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-test	d2e853a0672baa70
+4234	4303	7933865453828522	C:/syncui/firmware/build_win/_deps/picotool-subbuild/picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-test	d2e853a0672baa70
+4304	4397	7933865454764155	CMakeFiles/picotool-populate-complete	7717a1a38bc148df
+4304	4397	7933865454764155	picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-done	7717a1a38bc148df
+4304	4397	7933865454764155	C:/syncui/firmware/build_win/_deps/picotool-subbuild/CMakeFiles/picotool-populate-complete	7717a1a38bc148df
+4304	4397	7933865454764155	C:/syncui/firmware/build_win/_deps/picotool-subbuild/picotool-populate-prefix/src/picotool-populate-stamp/picotool-populate-done	7717a1a38bc148df

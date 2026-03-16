@@ -578,8 +578,10 @@ useEffect(() => {
               onClick={async () => {
                 try {
                   const resp = await invoke<any>("send_hello");
+                  const fw = resp.fw ?? resp.fw_version ?? "?";
+                  const proto = resp.proto ?? resp.proto_version ?? "?";
                   setStatus(
-                    `HELLO: ${resp.target} v${resp.fw_version} (proto ${resp.proto_version})`
+                    `HELLO: ${resp.target} v${fw} (proto ${proto})`
                   );
                 } catch (e: any) {
                   setStatus(`HELLO failed: ${e}`);

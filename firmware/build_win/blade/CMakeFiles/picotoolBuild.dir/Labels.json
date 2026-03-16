@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "C:/syncui/firmware/build_win/blade/CMakeFiles/picotoolBuild"
+		},
+		{
+			"file" : "C:/syncui/firmware/build_win/blade/CMakeFiles/picotoolBuild.rule"
+		},
+		{
+			"file" : "C:/syncui/firmware/build_win/blade/CMakeFiles/picotoolBuild-complete.rule"
+		},
+		{
+			"file" : "C:/syncui/firmware/build_win/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-build.rule"
+		},
+		{
+			"file" : "C:/syncui/firmware/build_win/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-configure.rule"
+		},
+		{
+			"file" : "C:/syncui/firmware/build_win/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-download.rule"
+		},
+		{
+			"file" : "C:/syncui/firmware/build_win/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-install.rule"
+		},
+		{
+			"file" : "C:/syncui/firmware/build_win/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-mkdir.rule"
+		},
+		{
+			"file" : "C:/syncui/firmware/build_win/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-patch.rule"
+		},
+		{
+			"file" : "C:/syncui/firmware/build_win/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-test.rule"
+		},
+		{
+			"file" : "C:/syncui/firmware/build_win/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"picotoolBuild"
+		],
+		"name" : "picotoolBuild"
+	}
+}

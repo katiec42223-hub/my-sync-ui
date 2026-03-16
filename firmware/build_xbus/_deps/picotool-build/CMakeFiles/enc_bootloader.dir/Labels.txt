@@ -1,0 +1,13 @@
+# Target labels
+ enc_bootloader
+# Source files and their labels
+C:/syncui/firmware/build_xbus/_deps/picotool-build/CMakeFiles/enc_bootloader
+C:/syncui/firmware/build_xbus/_deps/picotool-build/CMakeFiles/enc_bootloader.rule
+C:/syncui/firmware/build_xbus/_deps/picotool-build/CMakeFiles/enc_bootloader-complete.rule
+C:/syncui/firmware/build_xbus/_deps/picotool-build/enc_bootloader/src/enc_bootloader-stamp/enc_bootloader-build.rule
+C:/syncui/firmware/build_xbus/_deps/picotool-build/enc_bootloader/src/enc_bootloader-stamp/enc_bootloader-configure.rule
+C:/syncui/firmware/build_xbus/_deps/picotool-build/enc_bootloader/src/enc_bootloader-stamp/enc_bootloader-download.rule
+C:/syncui/firmware/build_xbus/_deps/picotool-build/enc_bootloader/src/enc_bootloader-stamp/enc_bootloader-install.rule
+C:/syncui/firmware/build_xbus/_deps/picotool-build/enc_bootloader/src/enc_bootloader-stamp/enc_bootloader-mkdir.rule
+C:/syncui/firmware/build_xbus/_deps/picotool-build/enc_bootloader/src/enc_bootloader-stamp/enc_bootloader-patch.rule
+C:/syncui/firmware/build_xbus/_deps/picotool-build/enc_bootloader/src/enc_bootloader-stamp/enc_bootloader-update.rule

@@ -8,3 +8,6 @@ pico_sdk_init()
 add_subdirectory(common)
 add_subdirectory(blade)
 add_subdirectory(fuselage)
+
+add_subdirectory(xbus_test)
+
