@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import type { ShowEvent } from "../types";
 import type { Song } from "../SongListEditor";
 
@@ -22,6 +23,7 @@ export default function TimelineEditor({
   onSeek,
   onPlaceEvent,
   onEventClick,
+  mixPath,
 }: {
   events: ShowEvent[];
   songList: Song[];
@@ -30,10 +32,54 @@ export default function TimelineEditor({
   onSeek: (ms: number) => void;
   onPlaceEvent?: (startMs: number, type: "blade" | "fuselage") => void;
   onEventClick?: (eventId: string) => void;
+  mixPath?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const waveformCanvasRef = useRef<HTMLCanvasElement>(null);
   const [hoverX, setHoverX] = useState<number | null>(null);
   const [hoverTrack, setHoverTrack] = useState<"blade" | "fuselage" | null>(null);
+  const [waveformData, setWaveformData] = useState<Float32Array | null>(null);
+  const [waveformLoading, setWaveformLoading] = useState(false);
+
+  // Decode waveform when mixPath changes
+  useEffect(() => {
+    if (!mixPath) {
+      setWaveformData(null);
+      return;
+    }
+    let cancelled = false;
+    setWaveformLoading(true);
+    (async () => {
+      try {
+        const audioCtx = new AudioContext();
+        const resp = await fetch(convertFileSrc(mixPath));
+        const buf = await resp.arrayBuffer();
+        const decoded = await audioCtx.decodeAudioData(buf);
+        if (cancelled) return;
+        const channel = decoded.getChannelData(0);
+        // Downsample to ~2000 bins max for performance
+        const bins = Math.min(2000, channel.length);
+        const samplesPerBin = Math.floor(channel.length / bins);
+        const peaks = new Float32Array(bins);
+        for (let i = 0; i < bins; i++) {
+          let max = 0;
+          const start = i * samplesPerBin;
+          for (let j = start; j < start + samplesPerBin && j < channel.length; j++) {
+            const abs = Math.abs(channel[j]);
+            if (abs > max) max = abs;
+          }
+          peaks[i] = max;
+        }
+        setWaveformData(peaks);
+        audioCtx.close();
+      } catch (e) {
+        console.error("Waveform decode failed:", e);
+      } finally {
+        if (!cancelled) setWaveformLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [mixPath]);
 
   // Derive scale: fit full show in ~900px default, or 1px=100ms, whichever is larger
   const pixelsPerMs = Math.max(1 / 100, 900 / Math.max(1, totalDurationMs));
@@ -75,6 +121,27 @@ export default function TimelineEditor({
           : totalDurationMs - offset));
     return { song: s, offset, duration: Math.max(0, duration), colorIdx: i };
   });
+
+  // Draw waveform on canvas
+  useEffect(() => {
+    const canvas = waveformCanvasRef.current;
+    if (!canvas || !waveformData) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const w = Math.round(canvasW);
+    const h = TRACK_H - 8;
+    canvas.width = w;
+    canvas.height = h;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "rgba(255, 255, 255, 0.2)";
+    const mid = h / 2;
+    for (let px = 0; px < w; px++) {
+      const binIdx = Math.floor((px / w) * waveformData.length);
+      const amp = waveformData[Math.min(binIdx, waveformData.length - 1)];
+      const barH = amp * h;
+      ctx.fillRect(px, mid - barH / 2, 1, barH);
+    }
+  }, [waveformData, canvasW]);
 
   const playheadX = playheadMs * pixelsPerMs;
 
@@ -135,6 +202,18 @@ export default function TimelineEditor({
 
           {/* Songs track */}
           <div style={{ height: TRACK_H, position: "relative", borderBottom: "1px solid #2f3136" }}>
+            {/* Waveform overlay */}
+            {waveformData && (
+              <canvas
+                ref={waveformCanvasRef}
+                style={{ position: "absolute", left: 0, top: 4, width: canvasW, height: TRACK_H - 8, pointerEvents: "none", zIndex: 1 }}
+              />
+            )}
+            {waveformLoading && (
+              <span style={{ position: "absolute", left: 8, top: 10, fontSize: 9, color: "#888", zIndex: 2 }}>
+                Loading waveform...
+              </span>
+            )}
             {songBars.map(({ song, offset, duration, colorIdx }) => {
               const x = offset * pixelsPerMs;
               const w = Math.max(4, duration * pixelsPerMs);

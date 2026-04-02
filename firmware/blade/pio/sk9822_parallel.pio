@@ -1,0 +1,78 @@
+; sk9822_parallel.pio
+; SYNCHRON Blade Controller — 4-lane parallel SK9822/APA102 SPI driver
+;
+; Drives 4 SK9822 LED segments simultaneously from a single PIO state machine.
+; All 4 lanes share the same clock signal. DATA pins are driven in parallel
+; from 4 bits of the same 32-bit word pushed into the FIFO.
+;
+; Protocol: SPI mode 0 (CPOL=0, CPHA=0)
+;   - CLK idles low
+;   - DATA valid on rising CLK edge
+;   - MSB first
+;
+; Pin mapping (consecutive GPIO groups for efficiency):
+;   OUT pins: DATA lines — 4 consecutive GPIOs
+;   SET pin:  CLK line — shared across all 4 lanes
+;
+; IMPORTANT: The 4 DATA GPIOs must be consecutive in hardware.
+; This program uses OUT PINS,4 to write all 4 data bits simultaneously.
+;
+; GPIO assignments (from HW_PINS_BLADE.md):
+;   Lane 0 DATA: GP2  (Seg1 Top)
+;   Lane 1 DATA: GP4  (Seg2 Top)
+;   Lane 2 DATA: GP11 (Seg2 Bot)  <- note: not consecutive with above
+;   Lane 3 DATA: GP12 (Seg1 Bot)
+;
+; NOTE ON NON-CONSECUTIVE GPIOs:
+; GP2, GP4, GP11, GP12 are not consecutive. This means we cannot use a
+; single PIO state machine with OUT PINS,4 across all 4 data lines.
+;
+; SOLUTION: Use 4 separate PIO state machines (one per lane), each handling
+; its own DATA+CLK pair. All 4 state machines receive the same data word
+; and run in lock-step, producing synchronised clock edges.
+; Each SM is loaded with the same program and clocked identically.
+;
+; This is the single-lane program. Instantiate it 4 times.
+;
+; FIFO format: Push 32-bit words MSB first.
+; Each word contains 8 bits of data for this lane in the TOP 8 bits.
+; (bits [31:24] = data, bits [23:0] = don't care, used for bit count)
+;
+; Bit rate: sys_clk / (2 * clkdiv)
+; For 10MHz at 125MHz sys_clk: clkdiv = 6.25 (set in C code)
+; Each bit takes 2 PIO cycles (one high, one low)
+
+.program sk9822_lane
+.side_set 1          ; 1 side-set bit = CLK
+
+; The state machine shifts out 1 bit per 2 cycles:
+;   Cycle 1: set CLK low,  output DATA bit (setup time)
+;   Cycle 2: set CLK high, hold DATA bit   (SK9822 latches on rising edge)
+;
+; OSR shift direction: LEFT (MSB first)
+; Autopull: enabled at 32 bits
+;
+; Execution: caller pushes one 32-bit word per bit-group.
+; For SK9822: caller pushes 32 words per pixel (or batches as needed).
+;
+; Simpler approach: caller pushes one byte at a time as the top 8 bits
+; of a 32-bit word. We shift out 8 bits, then stall waiting for next word.
+
+.wrap_target
+    ; Pull next word from FIFO (stall here if empty — natural backpressure)
+    pull            side 0    ; CLK low while pulling
+    
+    ; Shift out 8 bits, MSB first
+    ; Each bit: CLK low → set data → CLK high → next bit
+    set x, 7        side 0    ; loop counter = 7 (8 bits total)
+bitloop:
+    out pins, 1     side 0    ; output 1 bit to DATA, CLK stays low
+    jmp x-- bitloop side 1    ; CLK goes high (SK9822 latches), decrement x
+.wrap
+
+; Total cycles per bit: 2 (one side 0, one side 1)
+; At clkdiv=6.25, sys_clk=125MHz: bit_rate = 125MHz/(2*6.25) = 10MHz ✓
+; 8 bits per FIFO word: throughput = 10MHz/8 = 1.25M bytes/sec
+; 36 pixels × 4 bytes = 144 bytes per segment
+; Time per segment: 144 bytes / 1.25M bytes/sec = 115.2µs ✓
+; Slice window at 2100 RPM: 159µs — margin = 43.8µs ✓

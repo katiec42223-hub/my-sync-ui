@@ -1,0 +1,7 @@
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/pioasm/CMakeFiles/pioasm.dir
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/pioasm/CMakeFiles/edit_cache.dir
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/pioasm/CMakeFiles/rebuild_cache.dir
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/pioasm/CMakeFiles/list_install_components.dir
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/pioasm/CMakeFiles/install.dir
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/pioasm/CMakeFiles/install/local.dir
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/pioasm/CMakeFiles/install/strip.dir

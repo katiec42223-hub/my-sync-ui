@@ -16,6 +16,7 @@ export type ShowEvent = {
   songId: number;
   startMs: number;
   durationMs: number;
+  label?: string;
 
   blade?: {
     top: {

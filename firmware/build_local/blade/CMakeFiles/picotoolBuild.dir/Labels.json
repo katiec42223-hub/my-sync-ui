@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/blade/CMakeFiles/picotoolBuild"
+		},
+		{
+			"file" : "/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/blade/CMakeFiles/picotoolBuild.rule"
+		},
+		{
+			"file" : "/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/blade/CMakeFiles/picotoolBuild-complete.rule"
+		},
+		{
+			"file" : "/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-build.rule"
+		},
+		{
+			"file" : "/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-configure.rule"
+		},
+		{
+			"file" : "/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-download.rule"
+		},
+		{
+			"file" : "/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-install.rule"
+		},
+		{
+			"file" : "/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-mkdir.rule"
+		},
+		{
+			"file" : "/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-patch.rule"
+		},
+		{
+			"file" : "/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-test.rule"
+		},
+		{
+			"file" : "/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/blade/picotool/src/picotoolBuild-stamp/picotoolBuild-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"picotoolBuild"
+		],
+		"name" : "picotoolBuild"
+	}
+}

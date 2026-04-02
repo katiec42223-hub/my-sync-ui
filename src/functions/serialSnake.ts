@@ -14,8 +14,9 @@ export type SerialSnakeParams = {
 
 export const serialSnake: FunctionDescriptor<SerialSnakeParams> = {
   id: "fuse:serialSnake",
-  label: "🐍 Serial Snake",
-  
+  label: "Serial Snake",
+  fuselageOnly: true,
+
   defaultParams: {
     noteValue: "1/4",
     customBeatValue: 1,

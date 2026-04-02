@@ -24,6 +24,7 @@ function lerpColor(c1: string, c2: string, t: number): { r: number; g: number; b
 export const bladeLine: FunctionDescriptor<BladeLineParams> = {
   id: "blade:line",
   label: "Blade Line Pattern",
+  bladeOnly: true,
   defaultParams: {
     thicknessCm: 1,
     colorMode: "solid",

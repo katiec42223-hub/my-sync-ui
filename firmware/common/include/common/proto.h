@@ -2,6 +2,7 @@
 #define SYNCHRON_PROTO_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define PROTO_SYNC0 0xAA
 #define PROTO_SYNC1 0x55
@@ -17,7 +18,7 @@ typedef enum {
 } proto_cmd_t;
 
 void proto_init(void);
-void proto_task(void);  // call in main loop
+bool proto_task(void);  // call in main loop; returns false on CMD_START
 void proto_send_response(uint8_t cmd, const uint8_t *data, uint16_t len);
 
 #endif

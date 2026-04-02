@@ -1,5 +1,6 @@
 // src/SongListEditor.tsx
 import React, { useEffect, useMemo, useState } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import TapTempoModal from "./components/TapTempoModal";
 
 export type Song = {
@@ -21,17 +22,21 @@ function fmtMs(ms: number): string {
 }
 
 export default function SongListEditor({
-  open,
+  open: isOpen,
   onClose,
   songs,
   onChange,
   playheadMs,
+  mixPath,
+  onMixPathChange,
 }: {
   open: boolean;
   onClose: () => void;
   songs: Song[];
   onChange: (next: Song[]) => void;
   playheadMs?: number;
+  mixPath?: string;
+  onMixPathChange?: (path: string) => void;
 }) {
   const nextId = useMemo(() => {
     if (!songs || songs.length === 0) return 1;
@@ -56,7 +61,7 @@ export default function SongListEditor({
   const [tapTargetSong, setTapTargetSong] = useState<Song | "new" | null>(null);
 
   useEffect(() => {
-    if (open) {
+    if (isOpen) {
       setId(nextId);
       setDesc("");
       setTempo(160);
@@ -66,7 +71,7 @@ export default function SongListEditor({
       setEditingId(null);
       setTapTargetSong(null);
     }
-  }, [open, nextId]);
+  }, [isOpen, nextId]);
 
   function addSong() {
     const idToUse = Number.isFinite(id) && id > 0 ? id : nextId;
@@ -147,7 +152,7 @@ export default function SongListEditor({
     return () => window.removeEventListener("keydown", handleEsc);
   }, [onClose, editingId, tapTargetSong]);
 
-  if (!open) return null;
+  if (!isOpen) return null;
 
   const newSongPlaceholder: Song = { id: nextId, description: desc || "New Song", tempo };
 
@@ -156,13 +161,34 @@ export default function SongListEditor({
       <div style={overlayStyle}>
         <div style={panelStyle}>
           <h3>Song List</h3>
+
+          {/* Mix Track */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, padding: 8, background: "#1a1b1e", borderRadius: 4 }}>
+            <span style={{ fontSize: 12, color: "#aaa" }}>Mix Track:</span>
+            <span style={{ fontSize: 11, color: "#ccc", flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {mixPath ? mixPath.split(/[\\/]/).pop() : "None"}
+            </span>
+            <button
+              onClick={async () => {
+                const file = await open({
+                  multiple: false,
+                  filters: [{ name: "Audio", extensions: ["mp3", "wav", "ogg", "flac", "m4a"] }],
+                });
+                if (typeof file === "string") onMixPathChange?.(file);
+              }}
+              style={{ padding: "4px 10px", fontSize: 11 }}
+            >
+              Load Mix...
+            </button>
+          </div>
+
           <table style={{ width: "100%", marginBottom: 12 }}>
             <thead>
               <tr>
                 <th style={{ textAlign: "left" }}>ID</th>
                 <th style={{ textAlign: "left" }}>Description</th>
                 <th style={{ textAlign: "left" }}>Tempo (BPM)</th>
-                <th style={{ textAlign: "left" }}>Offset (ms)</th>
+                <th style={{ textAlign: "left" }}>Starts At</th>
                 <th style={{ textAlign: "left" }}>Bars</th>
                 <th style={{ textAlign: "left" }}>Time Sig</th>
                 <th />
@@ -188,26 +214,49 @@ export default function SongListEditor({
                       ) : s.tempo}
                     </td>
                     <td>
-                      {isEditing ? (
-                        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                          <input type="number" value={editOffset} onChange={(e) => setEditOffset(Number(e.target.value))} style={{ width: 70 }} min={0} />
-                          <span style={{ fontSize: 10, color: "#888" }}>{fmtMs(editOffset)}</span>
-                          {playheadMs != null && (
-                            <button
-                              onClick={() => setEditOffset(Math.round(playheadMs))}
-                              style={tapBtnStyle}
-                              title={`Set offset to current playhead (${fmtMs(playheadMs)})`}
-                            >
-                              ▶ Here
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                          <span>{s.offsetMs ?? 0}</span>
-                          <span style={{ fontSize: 10, color: "#888" }}>{fmtMs(s.offsetMs ?? 0)}</span>
-                        </div>
-                      )}
+                      {(() => {
+                        const t = isEditing ? editTempo : s.tempo;
+                        const msPerBeat = t > 0 ? 60000 / t : 1;
+                        const off = isEditing ? editOffset : (s.offsetMs ?? 0);
+                        const beatPos = (off / msPerBeat).toFixed(2);
+                        if (isEditing) {
+                          return (
+                            <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+                              <input type="number" value={editOffset} onChange={(e) => setEditOffset(Number(e.target.value))} style={{ width: 70 }} min={0} />
+                              <span style={{ fontSize: 10, color: "#888" }}>{fmtMs(editOffset)}</span>
+                              <span style={{ fontSize: 10, color: "#6a9fb5" }}>Beat {beatPos}</span>
+                              {playheadMs != null && (
+                                <button
+                                  onClick={() => setEditOffset(Math.round(playheadMs))}
+                                  style={tapBtnStyle}
+                                  title={`Set offset to current playhead (${fmtMs(playheadMs)})`}
+                                >
+                                  ▶ Here
+                                </button>
+                              )}
+                              <span style={{ fontSize: 10, color: "#888" }}>or beat:</span>
+                              <input
+                                type="number"
+                                step="0.01"
+                                style={{ width: 50, fontSize: 11 }}
+                                onChange={(e) => {
+                                  const b = Number(e.target.value);
+                                  if (Number.isFinite(b) && b >= 0) setEditOffset(Math.round(b * msPerBeat));
+                                }}
+                              />
+                            </div>
+                          );
+                        }
+                        return (
+                          <div style={{ display: "flex", gap: 4, flexDirection: "column", alignItems: "flex-start" }}>
+                            <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                              <span>{off}</span>
+                              <span style={{ fontSize: 10, color: "#888" }}>{fmtMs(off)}</span>
+                            </div>
+                            <span style={{ fontSize: 10, color: "#6a9fb5" }}>Beat {beatPos}</span>
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td>
                       {isEditing ? (
@@ -259,19 +308,36 @@ export default function SongListEditor({
                   </div>
                 </td>
                 <td>
-                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
-                    <input type="number" value={offset} onChange={(e) => setOffset(Number(e.target.value))} style={{ width: 70 }} min={0} />
-                    <span style={{ fontSize: 10, color: "#888" }}>{fmtMs(offset)}</span>
-                    {playheadMs != null && (
-                      <button
-                        onClick={() => setOffset(Math.round(playheadMs))}
-                        style={tapBtnStyle}
-                        title={`Set offset to current playhead (${fmtMs(playheadMs)})`}
-                      >
-                        ▶ Here
-                      </button>
-                    )}
-                  </div>
+                  {(() => {
+                    const msPerBeat = tempo > 0 ? 60000 / tempo : 1;
+                    const beatPos = (offset / msPerBeat).toFixed(2);
+                    return (
+                      <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+                        <input type="number" value={offset} onChange={(e) => setOffset(Number(e.target.value))} style={{ width: 70 }} min={0} />
+                        <span style={{ fontSize: 10, color: "#888" }}>{fmtMs(offset)}</span>
+                        <span style={{ fontSize: 10, color: "#6a9fb5" }}>Beat {beatPos}</span>
+                        {playheadMs != null && (
+                          <button
+                            onClick={() => setOffset(Math.round(playheadMs))}
+                            style={tapBtnStyle}
+                            title={`Set offset to current playhead (${fmtMs(playheadMs)})`}
+                          >
+                            ▶ Here
+                          </button>
+                        )}
+                        <span style={{ fontSize: 10, color: "#888" }}>or beat:</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          style={{ width: 50, fontSize: 11 }}
+                          onChange={(e) => {
+                            const b = Number(e.target.value);
+                            if (Number.isFinite(b) && b >= 0) setOffset(Math.round(b * msPerBeat));
+                          }}
+                        />
+                      </div>
+                    );
+                  })()}
                 </td>
                 <td>
                   <input type="number" value={barCount} onChange={(e) => setBarCount(Number(e.target.value))} style={{ width: 50 }} min={0} placeholder="0" />

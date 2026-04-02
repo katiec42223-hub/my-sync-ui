@@ -1,5 +1,5 @@
 // src/pages/ShowProgrammer.tsx
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import ShowEventsEditor from "../ShowEventEditor";
 import SongListEditor, { Song } from "../SongListEditor";
@@ -46,6 +46,8 @@ export default function ShowProgrammer({
   timeMs,
   editingEvent,
   setEditingEvent,
+  mixPath,
+  onMixPathChange,
 }: {
   fixtures?: Fixture[];
   channels?: ChannelChain[];
@@ -65,10 +67,15 @@ export default function ShowProgrammer({
   timeMs?: number;
   editingEvent?: ShowEvent | null;
   setEditingEvent?: (ev: ShowEvent | null) => void;
+  mixPath?: string;
+  onMixPathChange?: (path: string) => void;
 }) {
   const [status, setStatus] = useState<string>("idle");
 
   const [songPanelOpen, setSongPanelOpen] = useState<boolean>(false);
+  const [editingLabelId, setEditingLabelId] = useState<string | null>(null);
+  const [editingLabelValue, setEditingLabelValue] = useState<string>("");
+  const labelInputRef = useRef<HTMLInputElement>(null);
 
   // [ADD] row helpers
   function addRow() {
@@ -77,6 +84,7 @@ export default function ShowProgrammer({
       songId: songList[0]?.id ?? 0,
       startMs: timeMs ?? 0,
       durationMs: 1000,
+      label: "",
     };
     onEventsChange?.([...events, next]);
   }
@@ -96,6 +104,7 @@ export default function ShowProgrammer({
       songId: songList[0].id,
       startMs: timeMs ?? 0,
       durationMs: 1000,
+      label: "",
     };
 
     // add to the list and open the editor with a shallow copy
@@ -182,6 +191,15 @@ export default function ShowProgrammer({
                   paddingBottom: 4,
                 }}
               >
+                Label
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #3a3d42",
+                  paddingBottom: 4,
+                }}
+              >
                 Song
               </th>
               <th
@@ -217,6 +235,35 @@ export default function ShowProgrammer({
             {events.map((ev, idx) => (
               <tr key={ev.id}>
                 <td style={{ paddingTop: 4, paddingBottom: 4 }}>{idx + 1}</td>
+                <td
+                  style={{ paddingTop: 4, paddingBottom: 4, cursor: "text", minWidth: 60 }}
+                  onClick={() => {
+                    setEditingLabelId(ev.id);
+                    setEditingLabelValue(ev.label ?? "");
+                    setTimeout(() => labelInputRef.current?.focus(), 0);
+                  }}
+                >
+                  {editingLabelId === ev.id ? (
+                    <input
+                      ref={labelInputRef}
+                      value={editingLabelValue}
+                      onChange={(e) => setEditingLabelValue(e.target.value)}
+                      onBlur={() => {
+                        onEventsChange?.(events.map((e) => e.id === ev.id ? { ...e, label: editingLabelValue } : e));
+                        setEditingLabelId(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                        if (e.key === "Escape") setEditingLabelId(null);
+                      }}
+                      style={{ width: "100%", fontSize: 11 }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: 11, color: ev.label ? "#ccc" : "#555" }}>
+                      {ev.label || "\u2014"}
+                    </span>
+                  )}
+                </td>
                 <td style={{ paddingTop: 4, paddingBottom: 4 }}>
                   {resolveSongForEvent(ev.startMs, songList)?.description ?? "\u2014"}
                 </td>
@@ -260,6 +307,8 @@ export default function ShowProgrammer({
           songs={songList}
           onChange={(songs) => onSongListChange?.(songs)}
           playheadMs={timeMs}
+          mixPath={mixPath}
+          onMixPathChange={onMixPathChange}
         />
       </div>
 

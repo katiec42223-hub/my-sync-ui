@@ -10,4 +10,6 @@ add_subdirectory(blade)
 add_subdirectory(fuselage)
 
 add_subdirectory(xbus_test)
+add_subdirectory(tests/ir_bench)
+add_subdirectory(tests/segment_test)
 

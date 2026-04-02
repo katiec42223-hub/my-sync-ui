@@ -1,0 +1,10 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/pico-sdk/src/rp2040/boot_stage2/bs2_default_padded_checksummed.S
+

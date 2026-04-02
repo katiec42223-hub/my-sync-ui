@@ -8,6 +8,7 @@ function msPerBeat(bpm: number) {
 export const verticalSweep: FunctionDescriptor<VerticalSweepParams> = {
   id: "fuse:verticalSweep",
   label: "Vertical Line Sweep",
+  fuselageOnly: true,
   defaultParams: {
     mode: "smooth",
     beatsPerTraversal: 4,

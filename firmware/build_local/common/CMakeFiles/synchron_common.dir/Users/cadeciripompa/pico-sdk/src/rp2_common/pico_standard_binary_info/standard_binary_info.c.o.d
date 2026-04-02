@@ -1,0 +1,40 @@
+common/CMakeFiles/synchron_common.dir/Users/cadeciripompa/pico-sdk/src/rp2_common/pico_standard_binary_info/standard_binary_info.c.o: \
+ /Users/cadeciripompa/pico-sdk/src/rp2_common/pico_standard_binary_info/standard_binary_info.c \
+ /Users/cadeciripompa/pico-sdk/src/common/pico_binary_info/include/pico/binary_info.h \
+ /Users/cadeciripompa/pico-sdk/src/common/pico_binary_info/include/pico/binary_info/defs.h \
+ /Users/cadeciripompa/pico-sdk/src/common/pico_binary_info/include/pico/binary_info/structure.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/lib/gcc/arm-none-eabi/13.2.1/include/stdint.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include/stdint.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include/machine/_default_types.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include/sys/features.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include/_newlib_version.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include/sys/_intsup.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include/sys/_stdint.h \
+ /Users/cadeciripompa/pico-sdk/src/common/pico_binary_info/include/pico/binary_info/code.h \
+ /Users/cadeciripompa/pico-sdk/src/common/pico_base_headers/include/pico.h \
+ /Users/cadeciripompa/pico-sdk/src/common/pico_base_headers/include/pico/types.h \
+ /Users/cadeciripompa/pico-sdk/src/common/pico_base_headers/include/pico/assert.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/lib/gcc/arm-none-eabi/13.2.1/include/stdbool.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include/assert.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include/_ansi.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include/newlib.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include/sys/config.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include/machine/ieeefp.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/lib/gcc/arm-none-eabi/13.2.1/include/stddef.h \
+ /Users/cadeciripompa/Documents/SYNCHRON\ V3\ Local/my-sync-ui/firmware/build_local/generated/pico_base/pico/version.h \
+ /Users/cadeciripompa/pico-sdk/src/common/pico_base_headers/include/pico/config.h \
+ /Users/cadeciripompa/Documents/SYNCHRON\ V3\ Local/my-sync-ui/firmware/build_local/generated/pico_base/pico/config_autogen.h \
+ /Users/cadeciripompa/pico-sdk/src/boards/include/boards/pico.h \
+ /Users/cadeciripompa/pico-sdk/src/rp2_common/cmsis/include/cmsis/rename_exceptions.h \
+ /Users/cadeciripompa/pico-sdk/src/rp2040/pico_platform/include/pico/platform.h \
+ /Users/cadeciripompa/pico-sdk/src/rp2_common/pico_platform_compiler/include/pico/platform/compiler.h \
+ /Users/cadeciripompa/pico-sdk/src/rp2040/hardware_regs/include/hardware/platform_defs.h \
+ /usr/local/arm-gnu-toolchain-13.2.rel1-darwin-arm64-arm-none-eabi/arm-none-eabi/include/sys/cdefs.h \
+ /Users/cadeciripompa/pico-sdk/src/common/pico_base_headers/include/pico/types.h \
+ /Users/cadeciripompa/pico-sdk/src/rp2_common/pico_platform_sections/include/pico/platform/sections.h \
+ /Users/cadeciripompa/pico-sdk/src/rp2_common/pico_platform_panic/include/pico/platform/panic.h \
+ /Users/cadeciripompa/pico-sdk/src/rp2_common/pico_platform_common/include/pico/platform/common.h \
+ /Users/cadeciripompa/pico-sdk/src/rp2040/hardware_regs/include/hardware/regs/addressmap.h \
+ /Users/cadeciripompa/pico-sdk/src/rp2040/hardware_regs/include/hardware/regs/sio.h \
+ /Users/cadeciripompa/pico-sdk/src/common/pico_base_headers/include/pico/error.h \
+ /Users/cadeciripompa/pico-sdk/src/rp2040/boot_stage2/include/boot_stage2/config.h

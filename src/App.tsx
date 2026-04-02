@@ -23,6 +23,9 @@ type Layout = {
   alignmentGroups: AlignmentGroup[];
 };
 
+const sortByStart = (evts: ShowEvent[]) =>
+  [...evts].sort((a, b) => a.startMs - b.startMs);
+
 export default function App() {
   const [view, setView] = useState<"main" | "model-editor">("main");
   const [layout, setLayout] = useState<Layout>({
@@ -119,7 +122,7 @@ export default function App() {
             }
           }
           if (Array.isArray(json.songs)) setSongList(json.songs);
-          if (Array.isArray(json.events)) setEvents(json.events);
+          if (Array.isArray(json.events)) setEvents(sortByStart(json.events));
           if (typeof json.soundtrack === "string")
             setSoundtrack(json.soundtrack);
 
@@ -162,7 +165,7 @@ export default function App() {
           }
 
           if (Array.isArray(json.events)) {
-            setEvents(json.events);
+            setEvents(sortByStart(json.events));
           }
 
           if (typeof json.soundtrack === "string") {
@@ -194,7 +197,7 @@ export default function App() {
             songList={songList}
             onSongListChange={setSongList}
             events={events}
-            onEventsChange={setEvents}
+            onEventsChange={(evts) => setEvents(sortByStart(evts))}
             onSelectSoundtrack={handleSelectSoundtrack}
             soundtrack={soundtrack}
             visualizerConfig={visualizerConfig}
@@ -207,6 +210,8 @@ export default function App() {
             onForward={(ms = 5000) => handleSeek(ms)}
             editingEvent={editingEvent}
             setEditingEvent={setEditingEvent}
+            mixPath={soundtrack}
+            onMixPathChange={setSoundtrack}
           />
           <TimelineEditor
             events={events}
@@ -221,6 +226,7 @@ export default function App() {
               const ev = events.find((e) => e.id === id);
               if (ev) setEditingEvent({ ...ev });
             }}
+            mixPath={soundtrack}
             onPlaceEvent={(startMs, type) => {
               const newEvent: ShowEvent = {
                 id: crypto.randomUUID?.() ?? String(Date.now()),
@@ -231,7 +237,7 @@ export default function App() {
                   ? { blade: { top: { func: "blade:line", params: {} }, bottom: { func: "blade:line", params: {} } } }
                   : { fuselage: { func: "fuse:verticalSweep", params: {}, assignments: { fixtureIds: [], channelIds: [], groupIds: [] } } }),
               };
-              setEvents((prev) => [...prev, newEvent]);
+              setEvents((prev) => sortByStart([...prev, newEvent]));
             }}
           />
         </>

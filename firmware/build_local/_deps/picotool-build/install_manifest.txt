@@ -1,0 +1,7 @@
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/_deps/picotool/picotool
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/_deps/picotool/picotoolTargets.cmake
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/_deps/picotool/picotoolTargets-release.cmake
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/_deps/picotool/picotoolConfig.cmake
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/_deps/picotool/picotoolConfigVersion.cmake
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/_deps/picotool/enc_bootloader.elf
+/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/_deps/picotool/enc_bootloader_mbedtls.elf

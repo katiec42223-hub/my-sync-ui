@@ -35,36 +35,39 @@ static void send_frame(uint8_t cmd, const uint8_t *payload, uint16_t len) {
     fflush(stdout);
 }
 
-void proto_task(void) {
+bool proto_task(void) {
     int c = getchar_timeout_us(0);
-    if (c == PICO_ERROR_TIMEOUT) return;
-    
+    if (c == PICO_ERROR_TIMEOUT) return true;
+
     rx_buf[rx_pos++] = (uint8_t)c;
-    if (rx_pos < 6) return;  // need at least header
-    
+    if (rx_pos < 6) return true;  // need at least header
+
     // Check magic
     if (rx_buf[0] != PROTO_SYNC0 || rx_buf[1] != PROTO_SYNC1) {
         rx_pos = 0;
-        return;
+        return true;
     }
-    
+
     uint16_t payload_len = (rx_buf[4] << 8) | rx_buf[5];
     uint16_t frame_len = 8 + payload_len;
-    
-    if (rx_pos < frame_len) return;  // still receiving
-    
+
+    if (rx_pos < frame_len) return true;  // still receiving
+
     // Verify CRC
     uint16_t expected_crc = crc16_ccitt(&rx_buf[2], 4 + payload_len);
     uint16_t received_crc = (rx_buf[6 + payload_len] << 8) | rx_buf[7 + payload_len];
-    
+
     if (expected_crc != received_crc) {
         rx_pos = 0;
-        return;
+        return true;
     }
-    
+
     uint8_t cmd = rx_buf[3];
     uint8_t *payload = &rx_buf[6];
-    
+    (void)payload;  // used by future commands (WRITE, SET_META)
+
+    bool keep_running = true;
+
     // Dispatch command
     switch (cmd) {
         case CMD_HELLO: {
@@ -85,13 +88,15 @@ void proto_task(void) {
         }
         case CMD_START:
             send_frame(0x80, NULL, 0);  // OK
+            keep_running = false;       // signal main loop to hand off to player_run()
             break;
         default:
             send_frame(0x81, NULL, 0);  // ERR
             break;
     }
-    
+
     rx_pos = 0;
+    return keep_running;
 }
 
 void proto_send_response(uint8_t cmd, const uint8_t *data, uint16_t len) {

@@ -41,6 +41,7 @@ export default function ShowEventsEditor({
 }) {
   const migratedEvent = useMemo(() => event ?? null, [event]);
 
+  const [label, setLabel] = useState<string>(migratedEvent?.label ?? "");
   const [startMs, setStartMs] = useState<number>(migratedEvent?.startMs ?? 0);
 
   const [songId, setSongId] = useState<number>(
@@ -174,6 +175,7 @@ export default function ShowEventsEditor({
     onSave({
       id: migratedEvent?.id ?? crypto.randomUUID?.() ?? String(Date.now()),
       songId,
+      label,
       startMs,
       durationMs: finalDurationMs,
       blade: sameBladeTopBottom
@@ -321,6 +323,17 @@ export default function ShowEventsEditor({
     <div style={overlay}>
       <div style={panel}>
         <h3>Event Editor</h3>
+
+        {/* Label */}
+        <div style={{ marginBottom: 12 }}>
+          <label style={{ fontSize: 12 }}>Label</label>
+          <input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="Optional event label"
+            style={{ width: "100%" }}
+          />
+        </div>
 
         {/* Start time */}
         <div style={{ display: "flex", gap: 12, marginBottom: 12, alignItems: "flex-end" }}>
