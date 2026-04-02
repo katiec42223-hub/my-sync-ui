@@ -158,6 +158,11 @@ export interface Fixture {
   ledType: keyof typeof LED_TYPES;
   customSpacing?: number;    // for CUSTOM type only
   customDiameter?: number;   // for CUSTOM type only
+
+  // World-space geometry for buildTimeline pixel position calculations
+  worldPosition?: { x: number; y: number; z: number };   // position of pixel 0
+  worldDirection?: { x: number; y: number; z: number };   // unit vector along strip length
+  pixelDensity?: number;  // pixels per meter (default 144)
 }
 
 export interface ChannelChain {

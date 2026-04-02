@@ -213,13 +213,109 @@ fn get_connection_status(state: State<Shared>) -> Result<Option<String>, String>
 #[serde(rename_all = "lowercase")]
 enum Target { Blade, Fuselage, Both }
 
+#[derive(serde::Serialize)]
+struct WriteShowResult {
+  erased: bool,
+  chunks_written: u32,
+  verify_crc: u16,
+  started: bool,
+}
+
 #[tauri::command]
-fn write_show_to_controllers(_state: State<Shared>, _target: Target) -> Result<(), String> {
-  // TODO: invoke your programmer steps:
-  // 1) ERASE region
-  // 2) WRITE chunks
-  // 3) VERIFY CRC
-  Ok(())
+fn write_show_to_controllers(
+  state: State<Shared>,
+  _target: Target,
+  data: Vec<u8>,
+) -> Result<WriteShowResult, String> {
+  let mut s = state.lock().map_err(|_| "lock failed")?;
+  let port = s.port.as_mut().ok_or("not connected")?;
+
+  const CHUNK_SIZE: usize = 256;
+
+  // 1) ERASE
+  {
+    let frame = Frame::new(CommandId::Erase, vec![]);
+    port.write_all(&frame.to_bytes()).map_err(|e| format!("erase write: {e}"))?;
+    port.flush().map_err(|e| format!("erase flush: {e}"))?;
+    let resp = Frame::from_reader(port.as_mut())?;
+    let resp_id = ResponseId::try_from(resp.cmd)?;
+    if resp_id != ResponseId::Ok {
+      return Err("ERASE failed".into());
+    }
+    println!("ERASE ok");
+  }
+
+  // 2) Chunked WRITE (256 bytes per chunk)
+  let mut chunks_written: u32 = 0;
+  let mut offset: u32 = 0;
+  for chunk in data.chunks(CHUNK_SIZE) {
+    let mut payload = Vec::with_capacity(4 + chunk.len());
+    payload.push((offset >> 24) as u8);
+    payload.push((offset >> 16) as u8);
+    payload.push((offset >> 8) as u8);
+    payload.push((offset & 0xFF) as u8);
+    payload.extend_from_slice(chunk);
+
+    let frame = Frame::new(CommandId::Write, payload);
+    port.write_all(&frame.to_bytes()).map_err(|e| format!("write: {e}"))?;
+    port.flush().map_err(|e| format!("flush: {e}"))?;
+
+    let resp = Frame::from_reader(port.as_mut())?;
+    let resp_id = ResponseId::try_from(resp.cmd)?;
+    if resp_id != ResponseId::Ok {
+      return Err(format!("WRITE failed at offset=0x{:06X}", offset));
+    }
+    println!("WRITE offset=0x{:06X} len={}", offset, chunk.len());
+    offset += chunk.len() as u32;
+    chunks_written += 1;
+  }
+
+  // 3) VERIFY
+  let verify_crc: u16;
+  {
+    let frame = Frame::new(CommandId::Verify, vec![]);
+    port.write_all(&frame.to_bytes()).map_err(|e| format!("verify write: {e}"))?;
+    port.flush().map_err(|e| format!("verify flush: {e}"))?;
+    let resp = Frame::from_reader(port.as_mut())?;
+    let resp_id = ResponseId::try_from(resp.cmd)?;
+    if resp_id != ResponseId::Verify {
+      return Err("VERIFY failed".into());
+    }
+    let vr = VerifyResponse::from_payload(&resp.payload)?;
+    verify_crc = vr.crc;
+    println!("VERIFY CRC=0x{:04X}", verify_crc);
+  }
+
+  // 4) START
+  let started: bool;
+  {
+    let frame = Frame::new(CommandId::Start, vec![]);
+    port.write_all(&frame.to_bytes()).map_err(|e| format!("start write: {e}"))?;
+    port.flush().map_err(|e| format!("start flush: {e}"))?;
+    match Frame::from_reader(port.as_mut()) {
+      Ok(resp) => match ResponseId::try_from(resp.cmd) {
+        Ok(ResponseId::Ok) => {
+          println!("START ok");
+          started = true;
+        }
+        _ => {
+          eprintln!("START response unexpected, continuing");
+          started = false;
+        }
+      },
+      Err(e) => {
+        eprintln!("START read failed: {}, continuing", e);
+        started = false;
+      }
+    }
+  }
+
+  Ok(WriteShowResult {
+    erased: true,
+    chunks_written,
+    verify_crc,
+    started,
+  })
 }
 
 fn main() {

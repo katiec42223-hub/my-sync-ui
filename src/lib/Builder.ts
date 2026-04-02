@@ -1,57 +1,161 @@
-// v0.1 – simple, stable header: "SYNC", version=1, count=events
-// record: t_ms(u32), channel_id(u8), len(u16), payload[len]
-export type RawEvent = {
-  t_ms: number;
-  channel: string;          // e.g., "start", "bladeTopImage", etc.
-  payload?: Uint8Array;     // or build from value/params below
-  value?: number | string;
-  asset?: string;
-  name?: string;
-  param?: Record<string, any>;
-};
+import type { ShowEvent } from "../types";
 
-const CHANNEL_IDS: Record<string, number> = {
-  start: 1,
-  brightnessGlobal: 2,
-  bladeTopImage: 10,
-  bladeBottomImage: 11,
-  bladeBottomPattern: 12,
-  // add as needed…
-};
+// Flash layout constants
+const HEADER_SIZE = 4096;           // 0x000000 – 0x000FFF: JSON header, zero-padded
+const EVENT_TABLE_OFFSET = 4096;    // 0x001000
+const EVENT_ENTRY_SIZE = 10;        // bytes per event entry
+const MAX_EVENTS = 819;             // floor((0x3000 - 0x1000) / 10) = 819
+const PATTERN_POOL_OFFSET = 12288;  // 0x003000
 
-function encodePayload(ev: RawEvent): Uint8Array {
-  if (ev.payload) return ev.payload;
-  if (ev.asset)   return new TextEncoder().encode(JSON.stringify({ asset: ev.asset }));
-  if (ev.name)    return new TextEncoder().encode(JSON.stringify({ name: ev.name, param: ev.param ?? {} }));
-  if (ev.value!==undefined) return new TextEncoder().encode(JSON.stringify({ value: ev.value }));
-  return new Uint8Array();
+/**
+ * Build a binary blob matching the firmware flash layout.
+ *
+ * Layout:
+ *   0x000000  4KB JSON header (UTF-8, zero-padded to 4096 bytes)
+ *   0x001000  Event table — 10 bytes per event
+ *   0x003000  Pattern pool — length-prefixed UTF-8 JSON entries
+ */
+export function buildShowBlob(events: ShowEvent[]): Uint8Array {
+  const encoder = new TextEncoder();
+
+  // --- Build pattern pool first so we can assign patternIndex ---
+  const patternEntries: Uint8Array[] = [];
+  const patternJsons: string[] = [];
+  const eventPatternIndices: number[] = [];
+
+  for (const ev of events) {
+    const patternObj = {
+      func: ev.fuselage?.func ?? null,
+      params: ev.fuselage?.params ?? {},
+    };
+    const json = JSON.stringify(patternObj);
+    let idx = patternJsons.indexOf(json);
+    if (idx === -1) {
+      idx = patternJsons.length;
+      patternJsons.push(json);
+      const encoded = encoder.encode(json);
+      // Length-prefixed: u16 LE + UTF-8 bytes
+      const entry = new Uint8Array(2 + encoded.length);
+      const dv = new DataView(entry.buffer);
+      dv.setUint16(0, encoded.length, true);
+      entry.set(encoded, 2);
+      patternEntries.push(entry);
+    }
+    eventPatternIndices.push(idx);
+  }
+
+  const patternPoolSize = patternEntries.reduce((acc, e) => acc + e.length, 0);
+
+  // --- Build event table ---
+  const eventCount = Math.min(events.length, MAX_EVENTS);
+  const eventTableSize = eventCount * EVENT_ENTRY_SIZE;
+
+  // --- Build JSON header ---
+  const header = {
+    formatVersion: "1.0",
+    slicesPerRev: 180,
+    eventCount,
+    patternCount: patternJsons.length,
+    eventTableOffset: EVENT_TABLE_OFFSET,
+    patternPoolOffset: PATTERN_POOL_OFFSET,
+  };
+  const headerBytes = encoder.encode(JSON.stringify(header));
+  if (headerBytes.length > HEADER_SIZE) {
+    throw new Error(`Header JSON exceeds ${HEADER_SIZE} bytes`);
+  }
+
+  // --- Assemble blob ---
+  const totalSize = PATTERN_POOL_OFFSET + patternPoolSize;
+  const blob = new Uint8Array(totalSize);
+  const dv = new DataView(blob.buffer);
+
+  // Header region (zero-padded by default since Uint8Array is zeroed)
+  blob.set(headerBytes, 0);
+
+  // Event table
+  for (let i = 0; i < eventCount; i++) {
+    const ev = events[i];
+    const off = EVENT_TABLE_OFFSET + i * EVENT_ENTRY_SIZE;
+    dv.setUint32(off, ev.startMs >>> 0, true);
+    dv.setUint32(off + 4, ev.durationMs >>> 0, true);
+    // type: 0x01 = fuselage, 0x02 = blade, 0x03 = both
+    const type = ev.fuselage && ev.blade ? 0x03 : ev.blade ? 0x02 : 0x01;
+    dv.setUint8(off + 8, type);
+    dv.setUint8(off + 9, eventPatternIndices[i] & 0xff);
+  }
+
+  // Pattern pool
+  let poolOff = PATTERN_POOL_OFFSET;
+  for (const entry of patternEntries) {
+    blob.set(entry, poolOff);
+    poolOff += entry.length;
+  }
+
+  return blob;
 }
 
-export function buildShowBlob(events: RawEvent[]): Uint8Array {
-  const sorted = [...events].sort((a,b)=>a.t_ms-b.t_ms);
-  const payloads = sorted.map(encodePayload);
-  const sizes = payloads.map(p => p.length);
+/**
+ * Build a human-readable diagnostic log of the show blob contents.
+ */
+export function buildDiagnosticLog(events: ShowEvent[]): string {
+  const lines: string[] = [];
 
-  // header 4+1+4 = 9 bytes
-  const total = 9 + sorted.reduce((acc,_,i)=> acc + (4 + 1 + 2 + sizes[i]), 0);
-  const out = new Uint8Array(total);
-  const dv = new DataView(out.buffer);
+  // Header
+  const header = {
+    formatVersion: "1.0",
+    slicesPerRev: 180,
+    eventCount: events.length,
+    patternCount: 0,
+    eventTableOffset: EVENT_TABLE_OFFSET,
+    patternPoolOffset: PATTERN_POOL_OFFSET,
+  };
 
-  // magic "SYNC"
-  out.set([0x53,0x59,0x4e,0x43], 0);
-  dv.setUint8(4, 1);              // version
-  dv.setUint32(5, sorted.length, true);
-
-  let off = 9;
-  for (let i=0;i<sorted.length;i++){
-    const ev = sorted[i];
-    const ch = CHANNEL_IDS[ev.channel] ?? 0xff;
-    const pl = payloads[i];
-
-    dv.setUint32(off, ev.t_ms >>> 0, true); off += 4;
-    dv.setUint8(off, ch); off += 1;
-    dv.setUint16(off, pl.length, true); off += 2;
-    out.set(pl, off); off += pl.length;
+  // Deduplicate patterns
+  const patternJsons: string[] = [];
+  const eventPatternIndices: number[] = [];
+  for (const ev of events) {
+    const patternObj = {
+      func: ev.fuselage?.func ?? null,
+      params: ev.fuselage?.params ?? {},
+    };
+    const json = JSON.stringify(patternObj);
+    let idx = patternJsons.indexOf(json);
+    if (idx === -1) {
+      idx = patternJsons.length;
+      patternJsons.push(json);
+    }
+    eventPatternIndices.push(idx);
   }
-  return out;
+  header.patternCount = patternJsons.length;
+
+  lines.push("=== SHOW BLOB DIAGNOSTIC ===");
+  lines.push("");
+  lines.push("--- Header (0x000000, 4096 bytes) ---");
+  lines.push(JSON.stringify(header, null, 2));
+  lines.push("");
+
+  lines.push(`--- Event Table (0x001000, ${events.length} events, ${EVENT_ENTRY_SIZE} bytes each) ---`);
+  for (let i = 0; i < events.length; i++) {
+    const ev = events[i];
+    const off = EVENT_TABLE_OFFSET + i * EVENT_ENTRY_SIZE;
+    const type = ev.fuselage && ev.blade ? 0x03 : ev.blade ? 0x02 : 0x01;
+    const hex = [
+      (ev.startMs >>> 0).toString(16).padStart(8, "0"),
+      (ev.durationMs >>> 0).toString(16).padStart(8, "0"),
+      type.toString(16).padStart(2, "0"),
+      (eventPatternIndices[i] & 0xff).toString(16).padStart(2, "0"),
+    ].join(" ");
+    lines.push(`  [${i.toString().padStart(3)}] @0x${off.toString(16).padStart(6, "0")}  ${hex}  (start=${ev.startMs}ms dur=${ev.durationMs}ms pat=${eventPatternIndices[i]})`);
+  }
+  lines.push("");
+
+  lines.push(`--- Pattern Pool (0x003000, ${patternJsons.length} entries) ---`);
+  for (let i = 0; i < patternJsons.length; i++) {
+    const parsed = JSON.parse(patternJsons[i]);
+    lines.push(`  [${i}] func=${parsed.func ?? "(none)"}  params=${JSON.stringify(parsed.params)}`);
+  }
+  lines.push("");
+  lines.push(`Total blob size: ${PATTERN_POOL_OFFSET + patternJsons.reduce((acc, j) => acc + 2 + new TextEncoder().encode(j).length, 0)} bytes`);
+
+  return lines.join("\n");
 }

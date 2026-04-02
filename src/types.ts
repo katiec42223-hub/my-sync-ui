@@ -14,13 +14,9 @@ export type SerialSnakeParams = {
 export type ShowEvent = {
   id: string;
   songId: number;
+  startMs: number;
   durationMs: number;
-  
-  // Legacy fields (for backward compat)
-  func?: string;
-  payload?: any;
-  
-  // New structured payload
+
   blade?: {
     top: {
       func: string;
@@ -91,9 +87,37 @@ export interface BladeLineParams {
   beatsPerRev?: number; 
 }
 
+/**
+ * Find the song whose time window contains startMs.
+ * Songs are sorted by offsetMs; the last song extends to Infinity.
+ * Returns null if no song covers that time.
+ */
+export function resolveSongForEvent(
+  startMs: number,
+  songList: { id: number; description: string; tempo: number; offsetMs?: number; barCount?: number; timeSignature?: number }[]
+): typeof songList[number] | null {
+  if (songList.length === 0) return null;
+  const sorted = [...songList].sort((a, b) => (a.offsetMs ?? 0) - (b.offsetMs ?? 0));
+  for (let i = sorted.length - 1; i >= 0; i--) {
+    const offset = sorted[i].offsetMs ?? 0;
+    if (startMs >= offset) return sorted[i];
+  }
+  return null;
+}
+
+export function beatsToMs(
+  beats: number,
+  subdivision: number,
+  tempoBpm: number
+): number {
+  return beats * subdivision * (60000 / tempoBpm);
+}
+
 export interface FunctionDescriptor<P> {
   id: string;
   label: string;
+  bladeOnly?: boolean;
+  fuselageOnly?: boolean;
   buildTimeline: (ctx: {
     params: P;
     tempoBpm: number;
@@ -104,6 +128,8 @@ export interface FunctionDescriptor<P> {
     groupIds: string[];
     // lookup maps:
     fixtures: Record<string, { pixelCount: number; serpentine?: boolean }>;
+    // World-space pixel positions: flat [x0,y0,z0, x1,y1,z1, ...] per fixture
+    pixelPositions?: Record<string, Float32Array>;
   }) => Array<{ timeMs: number; pixelsOn: Array<{ fixtureId: string; pixelIndices: number[] }> }>;
   defaultParams: P;
 }

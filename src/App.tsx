@@ -3,6 +3,8 @@ import ShowProgrammer from "./components/ShowProgrammer";
 import ModelLayoutEditor from "./components/ModelLayoutEditor/ModelLayoutEditor";
 import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useState } from "react";
+import { usePlayback } from "./hooks/usePlayback";
+import { useAudioPlayback } from "./hooks/useAudioPlayback";
 import TimelineEditor from "./components/TimelineEditor";
 import type {
   Fixture,
@@ -11,7 +13,7 @@ import type {
   VisualizerConfig,
 } from "./components/ModelLayoutEditor/modelTypes";
 import type { Song } from "./SongListEditor";
-import { ShowEvent } from "./types";
+import type { ShowEvent } from "./types";
 import { open } from "@tauri-apps/plugin-dialog";
 import Visualizer3D from "./components/Visualizer3D/Visualizer3D";
 
@@ -31,6 +33,7 @@ export default function App() {
   const [songList, setSongList] = useState<Song[]>([]);
   const [events, setEvents] = useState<ShowEvent[]>([]);
   const [soundtrack, setSoundtrack] = useState<string>("");
+  const [editingEvent, setEditingEvent] = useState<ShowEvent | null>(null);
 
   const [visualizerConfig, setVisualizerConfig] = useState<VisualizerConfig>({
     fixtures: [],
@@ -38,8 +41,14 @@ export default function App() {
   });
 
   // GLOBAL transport state (shared by top bar + preview)
-  const [playheadMs, setPlayheadMs] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const { playheadMs, setPlayheadMs } = usePlayback(isPlaying);
+
+  const { audioReady, audioDuration } = useAudioPlayback(
+    soundtrack || null,
+    isPlaying,
+    playheadMs
+  );
 
   const handlePlay = () => setIsPlaying(true);
   const handlePause = () => setIsPlaying(false);
@@ -163,6 +172,7 @@ export default function App() {
           localStorage.setItem("lastProjectPath", path || "");
         }}
         onOpenModelEditor={() => setView("model-editor")}
+        events={events}
         // transport wiring
         playing={isPlaying}
         timeMs={playheadMs}
@@ -170,6 +180,9 @@ export default function App() {
         onPause={playbackHandlers.onPause}
         onRewind={() => handleSeek(-5000)}
         onForward={() => handleSeek(5000)}
+        soundtrack={soundtrack}
+        audioReady={audioReady}
+        audioDuration={audioDuration}
       />
 
       {view === "main" && (
@@ -192,8 +205,35 @@ export default function App() {
             onPause={handlePause}
             onRewind={(ms = 5000) => handleSeek(-ms)}
             onForward={(ms = 5000) => handleSeek(ms)}
+            editingEvent={editingEvent}
+            setEditingEvent={setEditingEvent}
           />
-          <TimelineEditor />
+          <TimelineEditor
+            events={events}
+            songList={songList}
+            playheadMs={playheadMs}
+            totalDurationMs={events.reduce(
+              (max, e) => Math.max(max, e.startMs + e.durationMs),
+              30000
+            )}
+            onSeek={(ms) => setPlayheadMs(ms)}
+            onEventClick={(id) => {
+              const ev = events.find((e) => e.id === id);
+              if (ev) setEditingEvent({ ...ev });
+            }}
+            onPlaceEvent={(startMs, type) => {
+              const newEvent: ShowEvent = {
+                id: crypto.randomUUID?.() ?? String(Date.now()),
+                songId: songList[0]?.id ?? 0,
+                startMs,
+                durationMs: 4000,
+                ...(type === "blade"
+                  ? { blade: { top: { func: "blade:line", params: {} }, bottom: { func: "blade:line", params: {} } } }
+                  : { fuselage: { func: "fuse:verticalSweep", params: {}, assignments: { fixtureIds: [], channelIds: [], groupIds: [] } } }),
+              };
+              setEvents((prev) => [...prev, newEvent]);
+            }}
+          />
         </>
       )}
 

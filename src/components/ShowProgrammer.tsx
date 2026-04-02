@@ -1,7 +1,5 @@
 // src/pages/ShowProgrammer.tsx
-import React, { useState, useMemo, useEffect, useRef } from "react";
-import { open, save } from "@tauri-apps/plugin-dialog";
-import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { useState, useMemo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import ShowEventsEditor from "../ShowEventEditor";
 import SongListEditor, { Song } from "../SongListEditor";
@@ -10,135 +8,23 @@ import type {
   ChannelChain,
   AlignmentGroup,
 } from "./ModelLayoutEditor/modelTypes";
-import { ShowEvent } from "../types";
+import { ShowEvent, resolveSongForEvent } from "../types";
 import Visualizer3D from "./Visualizer3D/Visualizer3D";
 import type { VisualizerConfig } from "./ModelLayoutEditor/modelTypes";
 import { getFunctionDescriptor } from "../functions/registry";
+import {
+  computePixelColorsForAll,
+  buildPixelPositions,
+  buildBladeSlices,
+} from "../engine/timeline";
+import BladePreview from "./BladePreview";
 
-type Timetable = {
-  version: string;
-  target: "blade" | "fuselage";
-  duration_ms: number;
-  events: any[];
-};
-
-// type ShowEvent = {
-//   id: string;
-//   songId: number;
-//   durationMs: number;
-//   func: string;
-//   payload?: any;
-// };
-
-function _resolveColorPattern(params: any, descriptor: any): string[] {
-      const raw =
-        params?.colorPattern ?? descriptor?.defaultParams?.colorPattern;
-      if (!raw) return ["#ffffff"];
-      if (Array.isArray(raw)) return raw;
-      if (typeof raw === "string") {
-        try {
-          const parsed = JSON.parse(raw);
-          if (Array.isArray(parsed)) return parsed;
-        } catch {
-          return raw
-            .replace(/^\[|\]$/g, "")
-            .split(",")
-            .map((s) => s.trim().replace(/^"|"$/g, ""))
-            .filter(Boolean);
-        }
-      }
-      return ["#ffffff"];
-    }
-
-function computePixelColorsForEvent(
-  ev: ShowEvent | null,
-  tMs: number,
-  tempo: number,
-  fixturesList: Fixture[] | null | undefined,
-  getDesc: typeof getFunctionDescriptor
-): Map<string, string[]> {
-  const out = new Map<string, string[]>();
-  if (!ev) return out;
-
-  const fuseFunc = ev.fuselage?.func ?? ev.func;
-  if (!fuseFunc) return out;
-
-  const desc = getDesc(fuseFunc);
-  if (!desc) return out;
-
-  const fixtureIds = ev.fuselage?.assignments?.fixtureIds ?? [];
-  const fixtureMap: Record<string, any> = {};
-  const fixturesArr = fixturesList ?? [];
-  fixturesArr.forEach((f) => (fixtureMap[f.id] = f));
-
-  let timeline: any[] = [];
-  try {
-    timeline =
-      desc.buildTimeline({
-        params: ev.fuselage?.params ?? {},
-        tempoBpm: tempo,
-        durationMs: ev.durationMs,
-        fixtureIds,
-        channelIds: ev.fuselage?.assignments?.channelIds ?? [],
-        groupIds: ev.fuselage?.assignments?.groupIds ?? [],
-        fixtures: fixtureMap,
-      }) || [];
-  } catch (err) {
-    console.error("buildTimeline error for", fuseFunc, err);
-    return out;
-  }
-
-  if (!Array.isArray(timeline) || timeline.length === 0) return out;
-
-  let current = timeline.find((frame: any, idx: number) =>
-    frame.timeMs <= tMs && (timeline[idx + 1]?.timeMs ?? Infinity) > tMs
-  );
-  if (!current) current = timeline[timeline.length - 1];
-
-  const colorPattern = _resolveColorPattern(ev.fuselage?.params ?? {}, desc);
-
-  (current.pixelsOn ?? []).forEach((fixtureData: any) => {
-    const fx = fixtureMap[fixtureData.fixtureId];
-    if (!fx) return;
-    const pixelCount = fx.pixelCount ?? 0;
-    const colors = new Array(Math.max(0, pixelCount)).fill("#000000");
-    (fixtureData.pixelIndices ?? []).forEach((pixelIdx: number, idx: number) => {
-      if (pixelIdx < 0 || pixelIdx >= pixelCount) return;
-      const color = colorPattern[pixelIdx % colorPattern.length] ?? "#ffffff";
-      colors[pixelIdx] = color;
-    });
-    out.set(fixtureData.fixtureId, colors);
-  });
-
-  return out;
-}
-
-function computePixelColorsForAll(
-  eventsList: ShowEvent[] | null | undefined,
-  tMs: number,
-  tempo: number,
-  fixturesList: Fixture[] | null | undefined,
-  getDesc: typeof getFunctionDescriptor
-): Map<string, string[]> {
-  const merged = new Map<string, string[]>();
-  const evs = eventsList ?? [];
-  if (evs.length === 0) return merged;
-
-  for (const ev of evs) {
-    const map = computePixelColorsForEvent(ev, tMs, tempo, fixturesList, getDesc);
-    for (const [fid, colors] of map.entries()) {
-      if (!merged.has(fid)) {
-        merged.set(fid, colors.slice());
-        continue;
-      }
-      const target = merged.get(fid)!;
-      for (let i = 0; i < colors.length && i < target.length; i++) {
-        if (colors[i] && colors[i] !== "#000000") target[i] = colors[i];
-      }
-    }
-  }
-
-  return merged;
+function fmtMs(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  const frac = ms % 1000;
+  return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}.${String(Math.round(frac)).padStart(3, "0")}`;
 }
 
 export default function ShowProgrammer({
@@ -158,6 +44,8 @@ export default function ShowProgrammer({
   visualizerConfig,
   playing,
   timeMs,
+  editingEvent,
+  setEditingEvent,
 }: {
   fixtures?: Fixture[];
   channels?: ChannelChain[];
@@ -175,92 +63,25 @@ export default function ShowProgrammer({
   visualizerConfig?: VisualizerConfig;
   playing?: boolean;
   timeMs?: number;
- 
+  editingEvent?: ShowEvent | null;
+  setEditingEvent?: (ev: ShowEvent | null) => void;
 }) {
-  const [tt, setTt] = useState<Timetable | null>(null);
   const [status, setStatus] = useState<string>("idle");
-  const [blob, setBlob] = useState<Uint8Array | null>(null);
 
   const [songPanelOpen, setSongPanelOpen] = useState<boolean>(false);
-
-  const [editingEvent, setEditingEvent] = useState<ShowEvent | null>(null);
 
   // [ADD] row helpers
   function addRow() {
     const next: ShowEvent = {
       id: crypto.randomUUID?.() ?? String(Date.now()),
       songId: songList[0]?.id ?? 0,
+      startMs: timeMs ?? 0,
       durationMs: 1000,
-      func: "fuse:verticalSweep", // TODO: replace with real function enums
     };
     onEventsChange?.([...events, next]);
   }
   function removeRow(idx: number) {
     onEventsChange?.(events.filter((_, i) => i !== idx));
-  }
-
-  async function loadTimetable() {
-    try {
-      const path = await open({
-        multiple: false,
-        filters: [{ name: "JSON", extensions: ["json"] }],
-      });
-      if (typeof path !== "string") return;
-      const txt = await readTextFile(path);
-      const json = JSON.parse(txt);
-
-      // Keep top-level timetable object if present, but extract events/songs too
-      setTt({
-        version: json.version ?? "0.1",
-        target: json.target ?? "blade",
-        duration_ms: json.duration_ms ?? json.durationMs ?? 0,
-        events: json.events ?? json.events ?? [],
-      });
-
-      if (Array.isArray(json.events)) {
-        // normalize IDs if needed
-        onEventsChange?.(
-          json.events.map((e: any) => ({ ...e, id: String(e.id) }))
-        );
-      } else {
-        onEventsChange?.([]);
-      }
-
-      if (Array.isArray(json.songs)) {
-        onSongListChange?.(json.songs);
-      } else if (Array.isArray(json.songList)) {
-        onSongListChange?.(json.songList);
-      } else {
-        onSongListChange?.([]);
-      }
-    } catch (e) {
-      console.error("loadTimetable failed:", e);
-    }
-  }
-
-  function buildBlob() {
-    if (!tt) return;
-    // Tiny demo “builder”: serialize JSON bytes with a simple header
-    const body = new TextEncoder().encode(JSON.stringify(tt));
-    const header = new TextEncoder().encode("SYNC0");
-    const out = new Uint8Array(header.length + body.length);
-    out.set(header, 0);
-    out.set(body, header.length);
-    setBlob(out);
-    setStatus(`built ${out.length} bytes`);
-  }
-
-  async function programTarget() {
-    if (!blob || !tt) return;
-    setStatus("programming…");
-    try {
-      // Stub; wire to your Rust impl later:
-      // await invoke("write_show_to_controllers", { target: tt.target, data: Array.from(blob) });
-      await invoke("hello"); // placeholder sanity call
-      setStatus("verify ok");
-    } catch (e: any) {
-      setStatus(`error: ${e?.message ?? e}`);
-    }
   }
 
   function openNewEventEditor() {
@@ -273,46 +94,27 @@ export default function ShowProgrammer({
     const newEvent: ShowEvent = {
       id: crypto.randomUUID?.() ?? String(Date.now()),
       songId: songList[0].id,
+      startMs: timeMs ?? 0,
       durationMs: 1000,
-      func: "fuse:verticalSweep",
-      payload: {},
     };
 
     // add to the list and open the editor with a shallow copy
     onEventsChange?.([...events, newEvent]);
-    setEditingEvent({ ...newEvent });
+    setEditingEvent?.({ ...newEvent });
   }
 
-  async function saveTimetable() {
-    try {
-      // Default metadata; you can surface inputs to edit these later
-      const payload = {
-        version: tt?.version ?? "0.1",
-        target: tt?.target ?? "blade",
-        duration_ms:
-          tt?.duration_ms ??
-          events.reduce((acc, e) => acc + (e.durationMs ?? 0), 0),
-        events,
-        songs: songList,
-      };
-      const picked = await save({
-        filters: [{ name: "Timetable JSON", extensions: ["json"] }],
-      });
-      if (!picked || typeof picked !== "string") return;
-      await writeTextFile(picked, JSON.stringify(payload, null, 2));
-      setStatus(`saved ${picked}`);
-    } catch (e) {
-      console.error("saveTimetable failed:", e);
-      setStatus(`save failed: ${String(e)}`);
-    }
-  }
-
-  // Preview selection: prefer currently editing event, else first blade:line, else first event
+  // Preview selection: prefer currently editing event, else first event with blade data, else first event
   const previewEvent: ShowEvent | null = useMemo(() => {
     if (editingEvent) return editingEvent;
-    const bladeEv = events.find((e) => e.func === "blade:line");
+    const bladeEv = events.find((e) => e.blade !== undefined);
     return bladeEv ?? (events.length ? events[0] : null);
   }, [editingEvent, events]);
+
+  // Pixel world positions for geometry-dependent functions
+  const pixelPositions = useMemo(
+    () => buildPixelPositions(fixtures),
+    [fixtures]
+  );
 
   // Tempo from song list
   const tempoBpm = useMemo(() => {
@@ -321,102 +123,8 @@ export default function ShowProgrammer({
     return song?.tempo ?? 120;
   }, [previewEvent, songList]);
 
-  // // Playback state
-  // const [isPlaying, setIsPlaying] = useState(false);
-  // const [playheadMs, setPlayheadMs] = useState(0);
-  // const rafRef = React.useRef<number | null>(null);
-  // const lastTsRef = React.useRef<number | null>(null);
-
-  // // Controls hook into left-bottom bar callbacks if provided, but drive local state too
-  // function handlePlay() {
-  //   setIsPlaying(true);
-  //   onPlay?.();
-  // }
-  // function handlePause() {
-  //   setIsPlaying(false);
-  //   lastTsRef.current = null;
-  //   onPause?.();
-  // }
-  // function handleSeek(deltaMs: number) {
-  //   setPlayheadMs((p) => Math.max(0, p + deltaMs));
-  //   if (deltaMs < 0) onRewind?.(-deltaMs);
-  //   else onForward?.(deltaMs);
-  // }
-
-
-
-   // Function to compute pixel colors for all events
-
-
-  
-
-  // Animation loop
-  // Animation loop (driven by 'playing' prop)
-  // Local animation state (driven by parent's playing/timeMs props)
-const [localTimeMs, setLocalTimeMs] = useState(timeMs ?? 0);
-const rafRef = useRef<number | null>(null);
-const lastTsRef = useRef<number | null>(null);
-useEffect(() => {
-  if (!playing) {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-    lastTsRef.current = null;
-    return;
-  }
-  
-  function tick(ts: number) {
-    if (lastTsRef.current == null) lastTsRef.current = ts;
-    const dt = ts - lastTsRef.current;
-    lastTsRef.current = ts;
-    
-    // Update local state for smooth animation
-    setLocalTimeMs((p) => p + dt);
-    
-    // Update parent state so TopCommandBar timecode updates
-    onForward?.(dt);
-    
-    rafRef.current = requestAnimationFrame(tick);
-  }
-  
-  rafRef.current = requestAnimationFrame(tick);
-  
-  return () => {
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = null;
-    lastTsRef.current = null;
-  };
-}, [playing, onForward]);
-
-// Sync external timeMs to localTimeMs (for rewind/forward)
-useEffect(() => {
-  if (typeof timeMs === "number" && Math.abs(timeMs - localTimeMs) > 1) {
-    setLocalTimeMs(timeMs);
-  }
-}, [timeMs, localTimeMs]);
-
-
-
-  // Compute current base angle like bladeLine.ts
-  function computeBaseAngle(params: any, tempo: number, tMs: number): number {
-    const msPerBeat = 60000 / Math.max(1, tempo);
-    const effectiveDegPerBeat =
-      typeof params.degreesPerBeat === "number" && params.degreesPerBeat > 0
-        ? params.degreesPerBeat
-        : typeof params.beatsPerRev === "number" && params.beatsPerRev > 0
-        ? 360 / params.beatsPerRev
-        : params.rotationSpeed ?? 45;
-
-    if (params.stationary) return 0;
-
-    const beatsElapsed = tMs / msPerBeat;
-    const timingMode = params.timingMode ?? "smooth";
-    const beatPhase =
-      timingMode === "beat-jump" ? Math.floor(beatsElapsed) : beatsElapsed;
-
-    let angle = beatPhase * Math.max(1, effectiveDegPerBeat);
-    if (params.rotationDirection === "ccw") angle = -angle;
-    return ((angle % 360) + 360) % 360;
-  }
+  // ShowProgrammer is a read-only consumer of timeMs from App.tsx.
+  // All playback state lives in App.tsx via usePlayback.
 
   return (
     <div
@@ -484,6 +192,16 @@ useEffect(() => {
                   width: 80,
                 }}
               >
+                Start
+              </th>
+              <th
+                style={{
+                  textAlign: "left",
+                  borderBottom: "1px solid #3a3d42",
+                  paddingBottom: 4,
+                  width: 80,
+                }}
+              >
                 Duration
               </th>
               <th
@@ -500,8 +218,10 @@ useEffect(() => {
               <tr key={ev.id}>
                 <td style={{ paddingTop: 4, paddingBottom: 4 }}>{idx + 1}</td>
                 <td style={{ paddingTop: 4, paddingBottom: 4 }}>
-                  {songList.find((s) => s.id === ev.songId)?.description ??
-                    `Song ${ev.songId}`}
+                  {resolveSongForEvent(ev.startMs, songList)?.description ?? "\u2014"}
+                </td>
+                <td style={{ paddingTop: 4, paddingBottom: 4, fontSize: 11, color: "#aaa" }}>
+                  {fmtMs(ev.startMs)}
                 </td>
                 <td style={{ paddingTop: 4, paddingBottom: 4 }}>
                   {ev.durationMs}ms
@@ -516,7 +236,7 @@ useEffect(() => {
                   }}
                 >
                   <button
-                    onClick={() => setEditingEvent({ ...ev })}
+                    onClick={() => setEditingEvent?.({ ...ev })}
                     style={{ padding: "2px 6px", fontSize: 11 }}
                   >
                     Edit
@@ -539,19 +259,13 @@ useEffect(() => {
           onClose={() => setSongPanelOpen(false)}
           songs={songList}
           onChange={(songs) => onSongListChange?.(songs)}
+          playheadMs={timeMs}
         />
       </div>
 
-      {/* Right: Preview / Program panel */}
+      {/* Right: Preview panel */}
       <div style={{ padding: 12 }}>
-        <h3>Preview & Program
-        <button
-          onClick={buildBlob}
-          style={{ marginRight: 8, padding: "6px 12px" }}
-        >
-          Show/Hide Reference
-          </button>
-          </h3>
+        <h3>Preview</h3>
 
         {/* USB Protocol Test Panel */}
         <div
@@ -683,10 +397,11 @@ useEffect(() => {
               fixtures={fixtures}
               pixelColors={computePixelColorsForAll(
                 events,
-                localTimeMs,
+                timeMs ?? 0,
                 tempoBpm,
                 fixtures ?? [],
-                getFunctionDescriptor
+                getFunctionDescriptor,
+                pixelPositions
               )}
             />
           ) : (
@@ -716,202 +431,40 @@ useEffect(() => {
               color: "#bbb",
             }}
           >
-            t={Math.round(localTimeMs)}ms • {tempoBpm} BPM
+            t={Math.round(timeMs ?? 0)}ms • {tempoBpm} BPM
           </div>
         </div>
 
-        {/* Existing 2D Blade Preview label */}
+        {/* 2D Blade Preview — POV unrolled disk */}
         <h4 style={{ marginTop: 0, marginBottom: 8, fontSize: 14 }}>
           2D Blade Preview
         </h4>
 
         <div
           style={{
-            height: 320,
-            border: "1px dashed #3a3d42",
-            borderRadius: 8,
-            marginBottom: 12,
             display: "grid",
             gridTemplateColumns: "1fr 1fr",
             gap: 8,
-            position: "relative",
+            marginBottom: 12,
             background: "#1f2023",
+            border: "1px dashed #3a3d42",
+            borderRadius: 8,
             padding: 8,
           }}
         >
-          {/* Top blade preview */}
-          <div
-            style={{
-              display: "grid",
-              placeItems: "center",
-              position: "relative",
-              borderRight: "1px solid #2f3136",
-            }}
-          >
-            {previewEvent ? (
-              (() => {
-                const paramsTop =
-                  previewEvent.blade?.top?.params ??
-                  previewEvent.payload?.topParams ??
-                  previewEvent.payload?.params ??
-                  previewEvent.payload ??
-                  {};
-                const baseAngleTop = computeBaseAngle(
-                  paramsTop,
-                  tempoBpm,
-                  localTimeMs
-                );
-                const lineCountTop = Math.max(
-                  1,
-                  Number(paramsTop.lineCount ?? 1)
-                );
-                const degreesPerLineTop = 360 / lineCountTop;
-
-                const size = 280;
-                const cx = size / 2;
-                const cy = size / 2;
-                const rOuter = 110;
-                const rInner = 80;
-
-                const lines = new Array(lineCountTop).fill(0).map((_, i) => {
-                  const angle =
-                    ((baseAngleTop + i * degreesPerLineTop) % 360) *
-                    (Math.PI / 180);
-                  const x1 = cx + Math.cos(angle) * rOuter;
-                  const y1 = cy + Math.sin(angle) * rOuter;
-                  const x2 = cx + Math.cos(angle) * rInner;
-                  const y2 = cy + Math.sin(angle) * rInner;
-                  return { x1, y1, x2, y2 };
-                });
-
-                return (
-                  <svg width={size} height={size}>
-                    <circle
-                      cx={cx}
-                      cy={cy}
-                      r={rOuter}
-                      fill="none"
-                      stroke="#444"
-                    />
-                    <circle
-                      cx={cx}
-                      cy={cy}
-                      r={rInner}
-                      fill="none"
-                      stroke="#444"
-                    />
-                    {lines.map((l, idx) => (
-                      <line
-                        key={idx}
-                        x1={l.x2}
-                        y1={l.y2}
-                        x2={l.x1}
-                        y2={l.y1}
-                        stroke="#66d9ef"
-                        strokeWidth={Math.max(
-                          1,
-                          Number(paramsTop.thicknessCm ?? 1)
-                        )}
-                        strokeLinecap="round"
-                      />
-                    ))}
-                    <text x={8} y={20} fill="#bbb" fontSize="12">
-                      Top • {tempoBpm} BPM • t={Math.round(localTimeMs)}ms
-                    </text>
-                  </svg>
-                );
-              })()
-            ) : (
-              <span style={{ opacity: 0.6 }}>No event to preview</span>
-            )}
-          </div>
-
-          {/* Bottom blade preview */}
-          <div
-            style={{
-              display: "grid",
-              placeItems: "center",
-              position: "relative",
-            }}
-          >
-            {previewEvent ? (
-              (() => {
-                const paramsBottom =
-                  previewEvent.blade?.bottom?.params ??
-                  previewEvent.payload?.bottomParams ??
-                  previewEvent.payload?.params ??
-                  previewEvent.payload ??
-                  {};
-                const baseAngleBottom = computeBaseAngle(
-                  paramsBottom,
-                  tempoBpm,
-                  localTimeMs
-                );
-                const lineCountBottom = Math.max(
-                  1,
-                  Number(paramsBottom.lineCount ?? 1)
-                );
-                const degreesPerLineBottom = 360 / lineCountBottom;
-
-                const size = 280;
-                const cx = size / 2;
-                const cy = size / 2;
-                const rOuter = 110;
-                const rInner = 80;
-
-                const lines = new Array(lineCountBottom).fill(0).map((_, i) => {
-                  const angle =
-                    ((baseAngleBottom + i * degreesPerLineBottom) % 360) *
-                    (Math.PI / 180);
-                  const x1 = cx + Math.cos(angle) * rOuter;
-                  const y1 = cy + Math.sin(angle) * rOuter;
-                  const x2 = cx + Math.cos(angle) * rInner;
-                  const y2 = cy + Math.sin(angle) * rInner;
-                  return { x1, y1, x2, y2 };
-                });
-
-                return (
-                  <svg width={size} height={size}>
-                    <circle
-                      cx={cx}
-                      cy={cy}
-                      r={rOuter}
-                      fill="none"
-                      stroke="#444"
-                    />
-                    <circle
-                      cx={cx}
-                      cy={cy}
-                      r={rInner}
-                      fill="none"
-                      stroke="#444"
-                    />
-                    {lines.map((l, idx) => (
-                      <line
-                        key={idx}
-                        x1={l.x2}
-                        y1={l.y2}
-                        x2={l.x1}
-                        y2={l.y1}
-                        stroke="#f7b955"
-                        strokeWidth={Math.max(
-                          1,
-                          Number(paramsBottom.thicknessCm ?? 1)
-                        )}
-                        strokeLinecap="round"
-                      />
-                    ))}
-                    <text x={8} y={20} fill="#bbb" fontSize="12">
-                      Bottom • {tempoBpm} BPM • t={Math.round(localTimeMs)}ms
-                    </text>
-                  </svg>
-                );
-              })()
-            ) : (
-              <span style={{ opacity: 0.6 }}>No event to preview</span>
-            )}
-          </div>
-          </div>
+          <BladePreview
+            slices={buildBladeSlices(previewEvent, tempoBpm, timeMs ?? 0, "top")}
+            label={`Top • ${tempoBpm} BPM • t=${Math.round(timeMs ?? 0)}ms`}
+            width={360}
+            height={144}
+          />
+          <BladePreview
+            slices={buildBladeSlices(previewEvent, tempoBpm, timeMs ?? 0, "bottom")}
+            label={`Bottom • ${tempoBpm} BPM • t=${Math.round(timeMs ?? 0)}ms`}
+            width={360}
+            height={144}
+          />
+        </div>
 
         {/* [ADD] Row editor modal — blade media for the selected event */}
         {editingEvent && (
@@ -929,24 +482,12 @@ useEffect(() => {
                 ? events.map((r) => (r.id === evt.id ? evt : r))
                 : [...events, evt];
               onEventsChange?.(next);
-              setEditingEvent(null);
+              setEditingEvent?.(null);
             }}
             // cancel/discard
-            onCancel={() => setEditingEvent(null)}
+            onCancel={() => setEditingEvent?.(null)}
           />
         )}
-        {/* [COMMENT] Hook this table to your Builder later:
-    - Iterate events[] in order to compose the .blade/.fuse timeline.
-    - Use songList[songId].tempo to compute beat-aligned durations if desired.
-*/}
-        <div style={{ display: "flex", gap: 8 }}>
-          <button onClick={programTarget} disabled={!blob}>
-            Program Device
-          </button>
-          <span style={{ fontSize: 12, opacity: 0.8 }}>
-            {blob ? `${blob.length} bytes ready` : "Nothing built yet"}
-          </span>
-        </div>
       </div>
     </div>
       

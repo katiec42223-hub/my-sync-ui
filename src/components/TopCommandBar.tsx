@@ -4,6 +4,8 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { exit } from "@tauri-apps/plugin-process";
 import { VisualizerConfig } from "./ModelLayoutEditor/modelTypes";
+import type { ShowEvent } from "../types";
+import { buildShowBlob } from "../lib/Builder";
 
 type Target = "blade" | "fuselage" | "both";
 
@@ -21,6 +23,10 @@ type Props = {
   onVisualizerConfigChange?: (config: VisualizerConfig) => void;
   playing?: boolean;
   timeMs?: number;
+  events?: ShowEvent[];
+  soundtrack?: string;
+  audioReady?: boolean;
+  audioDuration?: number;
 };
 
 const usbRegex = /(usb(modem|serial)|cu\.usb|tty\.usb|^com\d+$)/i;
@@ -87,6 +93,10 @@ export default function TopCommandBar({
   defaultJumpMs = 5000,
   playing = false,
   timeMs = 0,
+  events = [],
+  soundtrack,
+  audioReady = false,
+  audioDuration = 0,
 }: Props) {
   const [ports, setPorts] = useState<string[]>([]);
   const [showNonUsb, setShowNonUsb] = useState(false);
@@ -99,16 +109,19 @@ export default function TopCommandBar({
   const [selectedFuselagePort, setSelectedFuselagePort] = useState<string>("");
   const [selectedBladePort, setSelectedBladePort] = useState<string>("");
 
-  // Time readout mm:ss.mmm
-  const timecode = useMemo(() => {
-    const ms = Math.max(0, timeMs ?? 0);
-    const m = Math.floor(ms / 60000);
-    const s = Math.floor((ms % 60000) / 1000);
-    const f = Math.floor(ms % 1000);
+  // Format ms to mm:ss.mmm
+  function fmtTimecode(ms: number): string {
+    const v = Math.max(0, ms);
+    const m = Math.floor(v / 60000);
+    const s = Math.floor((v % 60000) / 1000);
+    const f = Math.floor(v % 1000);
     const pad = (n: number, w = 2) => n.toString().padStart(w, "0");
     const pad3 = (n: number) => n.toString().padStart(3, "0");
     return `${pad(m)}:${pad(s)}.${pad3(f)}`;
-  }, [timeMs]);
+  }
+
+  const timecode = useMemo(() => fmtTimecode(timeMs ?? 0), [timeMs]);
+  const totalTimecode = useMemo(() => audioDuration > 0 ? fmtTimecode(audioDuration) : null, [audioDuration]);
 
   // Load serial ports (USB first, Bluetooth hidden by default)
   async function refreshPorts() {
@@ -263,9 +276,20 @@ export default function TopCommandBar({
     setBusy(true);
     setStatus("busy");
     try {
-      // Implement this on the Rust side; sample signature:
-      // write_show_to_controllers(target: "blade"|"fuselage"|"both")
-      await invoke("write_show_to_controllers", { target });
+      const blob = buildShowBlob(events);
+      const result = await invoke<{
+        erased: boolean;
+        chunks_written: number;
+        verify_crc: number;
+        started: boolean;
+      }>("write_show_to_controllers", {
+        target,
+        data: Array.from(blob),
+      });
+      console.log(
+        `Write complete: erased=${result.erased} chunks=${result.chunks_written} ` +
+        `CRC=0x${result.verify_crc.toString(16).padStart(4, "0")} started=${result.started}`
+      );
       setStatus("ok");
     } catch (e) {
       console.error("write_show_to_controllers failed:", e);
@@ -321,8 +345,13 @@ export default function TopCommandBar({
           ⟶
         </button>
         <span style={{ marginLeft: 8, fontVariantNumeric: "tabular-nums" }}>
-          {timecode}
+          {timecode}{totalTimecode ? ` / ${totalTimecode}` : ""}
         </span>
+        {soundtrack ? (
+          <span style={{ marginLeft: 6, color: audioReady ? "#2ecc71" : "#666" }} title={audioReady ? "Audio ready" : "Audio loading"}>
+            ♪
+          </span>
+        ) : null}
       </div>
 
       {/* Target & Port */}

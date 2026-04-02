@@ -2,15 +2,25 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import type { ShowEvent } from "./types";
+import { resolveSongForEvent, beatsToMs } from "./types";
 import type { Song } from "./SongListEditor";
 import FunctionParamPanel from "./components/FunctionParamPanel";
 import { listFunctions } from "./functions/registry";
 
-const FUNCTION_LIST = listFunctions().map((f) => ({
-  value: f.id,
-  label: f.label,
-}));
-const FIRST_FUNC_ID = FUNCTION_LIST[0]?.value || "";
+function fmtMs(ms: number): string {
+  const totalSec = Math.floor(ms / 1000);
+  const min = Math.floor(totalSec / 60);
+  const sec = totalSec % 60;
+  const frac = ms % 1000;
+  return `${String(min).padStart(2, "0")}:${String(sec).padStart(2, "0")}.${String(Math.round(frac)).padStart(3, "0")}`;
+}
+
+const ALL_FUNCTIONS = listFunctions();
+
+// Blade selectors: exclude fuselageOnly functions
+const BLADE_FUNCTIONS = ALL_FUNCTIONS.filter((f) => !f.fuselageOnly);
+// Fuselage selectors: exclude bladeOnly functions
+const FUSELAGE_FUNCTIONS = ALL_FUNCTIONS.filter((f) => !f.bladeOnly);
 
 export default function ShowEventsEditor({
   event,
@@ -29,62 +39,29 @@ export default function ShowEventsEditor({
   onSave: (evt: ShowEvent) => void;
   onCancel: () => void;
 }) {
-  // Migrate legacy payload to new structure on mount
-  const migratedEvent = useMemo(() => {
-    if (!event) return null;
-    if (event.blade && event.fuselage) return event; // already new format
+  const migratedEvent = useMemo(() => event ?? null, [event]);
 
-    // Legacy: event.func + event.payload
-    const legacyFunc = event.func ?? FIRST_FUNC_ID;
-    const legacyParams = event.payload?.params ?? {};
-    const isBlade = legacyFunc.startsWith("blade:");
-
-    return {
-      ...event,
-      blade: {
-        top: {
-          func: isBlade ? legacyFunc : "blade:line",
-          params: isBlade ? legacyParams : {},
-          media: event.payload?.topFiles ?? [],
-        },
-        bottom: {
-          func: isBlade ? legacyFunc : "blade:line",
-          params: isBlade ? legacyParams : {},
-          media: event.payload?.bottomFiles ?? [],
-        },
-      },
-      fuselage: {
-        func: !isBlade ? legacyFunc : "fuse:verticalSweep",
-        params: !isBlade ? legacyParams : {},
-        assignments: {
-          fixtureIds: event.payload?.fixtures ?? [],
-          channelIds: event.payload?.channels ?? [],
-          groupIds: event.payload?.alignmentGroups ?? [],
-          pixels: event.payload?.pixels ?? [],
-          channelPixelMap: event.payload?.channelPixelMap ?? {},
-        },
-      },
-    };
-  }, [event]);
+  const [startMs, setStartMs] = useState<number>(migratedEvent?.startMs ?? 0);
 
   const [songId, setSongId] = useState<number>(
     migratedEvent?.songId ?? songs[0]?.id ?? 0
   );
 
-  const tempoForSong = useMemo(() => {
-    const s = songs.find((x) => x.id === songId);
-    return s?.tempo ?? 160;
-  }, [songs, songId]);
+  // Duration state
+  const [durationMode, setDurationMode] = useState<"ms" | "beats">("ms");
+  const [durationMs, setDurationMs] = useState<number>(migratedEvent?.durationMs ?? 1000);
+  const [beatCount, setBeatCount] = useState<number>(4);
+  const [subdivision, setSubdivision] = useState<number>(1); // quarter note default
 
-  const initialBeats = useMemo(() => {
-    if (migratedEvent?.durationMs && tempoForSong) {
-      const beatsFloat = (migratedEvent.durationMs * tempoForSong) / 60000;
-      return Math.max(1, Math.round(beatsFloat)); // clamp to whole beats
-    }
-    return 4; // default whole beats
-  }, [migratedEvent?.durationMs, tempoForSong]);
+  // Tempo resolved from song at startMs position
+  const resolvedTempo = useMemo(() => {
+    return resolveSongForEvent(startMs, songs)?.tempo ?? 120;
+  }, [startMs, songs]);
 
-  const [beats, setBeats] = useState<number>(initialBeats);
+  // Keep durationMs in sync when beats mode values change
+  const beatsDurationMs = useMemo(() => {
+    return Math.round(beatsToMs(beatCount, subdivision, resolvedTempo));
+  }, [beatCount, subdivision, resolvedTempo]);
 
   // Check if top and bottom are identical
   const initialSame = useMemo(() => {
@@ -187,7 +164,7 @@ export default function ShowEventsEditor({
   }, [onCancel]);
 
   function handleSave() {
-    const durationMs = Math.round((beats * 60000) / tempoForSong);
+    const finalDurationMs = durationMode === "beats" ? beatsDurationMs : durationMs;
 
     const { map: channelPixelMap, unknown } =
       assignMode === "pixels"
@@ -197,7 +174,8 @@ export default function ShowEventsEditor({
     onSave({
       id: migratedEvent?.id ?? crypto.randomUUID?.() ?? String(Date.now()),
       songId,
-      durationMs,
+      startMs,
+      durationMs: finalDurationMs,
       blade: sameBladeTopBottom
         ? {
             top: {
@@ -275,12 +253,8 @@ export default function ShowEventsEditor({
     );
   }
 
-  const bladeFunctions = FUNCTION_LIST.filter((f) =>
-    f.value.startsWith("blade:")
-  );
-  const fuselageFunctions = FUNCTION_LIST.filter((f) =>
-    f.value.startsWith("fuse:")
-  );
+  const bladeFunctions = BLADE_FUNCTIONS;
+  const fuselageFunctions = FUSELAGE_FUNCTIONS;
 
   function parseChannelPixelInput(input: string, knownChannels: string[]) {
     // Split into channel sections. Allow newline separation.
@@ -348,8 +322,26 @@ export default function ShowEventsEditor({
       <div style={panel}>
         <h3>Event Editor</h3>
 
+        {/* Start time */}
+        <div style={{ display: "flex", gap: 12, marginBottom: 12, alignItems: "flex-end" }}>
+          <div style={{ width: 140 }}>
+            <label style={{ fontSize: 12 }}>Start time (ms)</label>
+            <input
+              type="number"
+              min={0}
+              value={startMs}
+              onChange={(e) => setStartMs(Math.max(0, Number(e.target.value)))}
+              style={{ width: "100%" }}
+            />
+          </div>
+          <span style={{ fontSize: 12, color: "#888", paddingBottom: 4 }}>{fmtMs(startMs)}</span>
+          <span style={{ fontSize: 12, color: "#6a9fb5", paddingBottom: 4 }}>
+            {resolveSongForEvent(startMs, songs)?.description ?? "\u2014"}
+          </span>
+        </div>
+
         {/* Song / Duration */}
-        <div style={{ display: "flex", gap: 12, marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 12, marginBottom: 12, alignItems: "flex-end" }}>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: 12 }}>Song</label>
             <select
@@ -364,18 +356,67 @@ export default function ShowEventsEditor({
               ))}
             </select>
           </div>
-          <div style={{ width: 120 }}>
-            <label style={{ fontSize: 12 }}>Duration (beats)</label>
-            <input
-              type="number"
-              min={1}
-              step={1}
-              value={beats}
-              onChange={(e) =>
-                setBeats(Math.max(1, Math.round(Number(e.target.value))))
-              }
-              style={{ width: "100%" }}
-            />
+
+          {/* Duration with mode toggle */}
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
+              <label style={{ fontSize: 12 }}>Duration</label>
+              <button
+                onClick={() => setDurationMode("ms")}
+                style={{
+                  ...toggleBtnStyle,
+                  background: durationMode === "ms" ? "#4f46e5" : "#2b2d31",
+                }}
+              >
+                ms
+              </button>
+              <button
+                onClick={() => setDurationMode("beats")}
+                style={{
+                  ...toggleBtnStyle,
+                  background: durationMode === "beats" ? "#4f46e5" : "#2b2d31",
+                }}
+              >
+                beats
+              </button>
+            </div>
+
+            {durationMode === "ms" ? (
+              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <input
+                  type="number"
+                  min={1}
+                  value={durationMs}
+                  onChange={(e) => setDurationMs(Math.max(1, Number(e.target.value)))}
+                  style={{ width: 100 }}
+                />
+                <span style={{ fontSize: 11, color: "#888" }}>{fmtMs(durationMs)}</span>
+              </div>
+            ) : (
+              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <input
+                  type="number"
+                  min={1}
+                  value={beatCount}
+                  onChange={(e) => setBeatCount(Math.max(1, Number(e.target.value)))}
+                  style={{ width: 50 }}
+                />
+                <select
+                  value={subdivision}
+                  onChange={(e) => setSubdivision(Number(e.target.value))}
+                  style={{ width: 90 }}
+                >
+                  <option value={4}>whole</option>
+                  <option value={2}>half</option>
+                  <option value={1}>quarter</option>
+                  <option value={0.5}>eighth</option>
+                  <option value={0.25}>sixteenth</option>
+                </select>
+                <span style={{ fontSize: 11, color: "#888" }}>
+                  {fmtMs(beatsDurationMs)} @ {resolvedTempo} BPM
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -404,8 +445,11 @@ export default function ShowEventsEditor({
                   onChange={(e) => setBladeTopFunc(e.target.value)}
                   style={{ width: "100%" }}
                 >
+                  {bladeFunctions.length === 0 && (
+                    <option disabled value="">No functions registered</option>
+                  )}
                   {bladeFunctions.map((f) => (
-                    <option key={f.value} value={f.value}>
+                    <option key={f.id} value={f.id}>
                       {f.label}
                     </option>
                   ))}
@@ -441,8 +485,11 @@ export default function ShowEventsEditor({
                     onChange={(e) => setBladeTopFunc(e.target.value)}
                     style={{ width: "100%" }}
                   >
+                    {bladeFunctions.length === 0 && (
+                      <option disabled value="">No functions registered</option>
+                    )}
                     {bladeFunctions.map((f) => (
-                      <option key={f.value} value={f.value}>
+                      <option key={f.id} value={f.id}>
                         {f.label}
                       </option>
                     ))}
@@ -476,8 +523,11 @@ export default function ShowEventsEditor({
                     onChange={(e) => setBladeBottomFunc(e.target.value)}
                     style={{ width: "100%" }}
                   >
+                    {bladeFunctions.length === 0 && (
+                      <option disabled value="">No functions registered</option>
+                    )}
                     {bladeFunctions.map((f) => (
-                      <option key={f.value} value={f.value}>
+                      <option key={f.id} value={f.id}>
                         {f.label}
                       </option>
                     ))}
@@ -515,8 +565,11 @@ export default function ShowEventsEditor({
               onChange={(e) => setFuselageFunc(e.target.value)}
               style={{ width: "100%" }}
             >
+              {fuselageFunctions.length === 0 && (
+                <option disabled value="">No functions registered</option>
+              )}
               {fuselageFunctions.map((f) => (
-                <option key={f.value} value={f.value}>
+                <option key={f.id} value={f.id}>
                   {f.label}
                 </option>
               ))}
@@ -737,4 +790,13 @@ const panel: React.CSSProperties = {
   padding: 16,
   borderRadius: 8,
   boxShadow: "0 10px 30px rgba(0,0,0,0.5)",
+};
+
+const toggleBtnStyle: React.CSSProperties = {
+  padding: "2px 8px",
+  fontSize: 11,
+  border: "none",
+  borderRadius: 3,
+  color: "white",
+  cursor: "pointer",
 };

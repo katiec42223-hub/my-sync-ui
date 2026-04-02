@@ -19,14 +19,55 @@ export const verticalSweep: FunctionDescriptor<VerticalSweepParams> = {
     extentRight: 1, // if treated as fraction initially
     smoothing: "linear",
   },
-  buildTimeline: ({ params, tempoBpm, fixtureIds, fixtures }) => {
+  buildTimeline: ({ params, tempoBpm, fixtureIds, fixtures, pixelPositions }) => {
     if (!fixtureIds || fixtureIds.length === 0 || !fixtures) {
       return [];
     }
+
+    // Two modes:
+    // 1. World-space mode (pixelPositions provided): group pixels by their
+    //    world-space X angle (atan2(x, z)) so the sweep follows real geometry.
+    // 2. Index-based mode (fallback): sweep linearly across pixel indices.
+    //    This preserves backward compatibility when no positions are available.
+    const useWorldSpace = !!pixelPositions;
+
+    // Build per-fixture pixel angle bins when world-space positions are available.
+    // angleBins: for each fixture, an array of { angle (radians), pixelIndex } sorted by angle.
+    const angleBins: Record<string, Array<{ angle: number; idx: number }>> = {};
+    if (useWorldSpace) {
+      for (const fid of fixtureIds) {
+        const pos = pixelPositions![fid];
+        if (!pos) continue;
+        const count = pos.length / 3;
+        const bins: Array<{ angle: number; idx: number }> = [];
+        for (let i = 0; i < count; i++) {
+          const x = pos[i * 3];
+          const z = pos[i * 3 + 2];
+          bins.push({ angle: Math.atan2(x, z), idx: i });
+        }
+        bins.sort((a, b) => a.angle - b.angle);
+        angleBins[fid] = bins;
+      }
+    }
+
     // Decide pixel extents (convert fractions if <=1)
     const perFixtureInfo = fixtureIds.map((fid) => {
       const f = fixtures[fid];
       const total = f?.pixelCount ?? 0;
+
+      // In world-space mode, extents span the full angle-sorted array
+      if (useWorldSpace && angleBins[fid]) {
+        const binCount = angleBins[fid].length;
+        return {
+          fid,
+          total,
+          left: 0,
+          right: Math.max(0, binCount - 1),
+          serpentine: false,
+          worldSpace: true,
+        };
+      }
+
       const left =
         params.extentLeft <= 1
           ? Math.round(params.extentLeft * (total - 1))
@@ -41,6 +82,7 @@ export const verticalSweep: FunctionDescriptor<VerticalSweepParams> = {
         left: Math.max(0, left),
         right: Math.min(total - 1, right),
         serpentine: !!f?.serpentine,
+        worldSpace: false,
       };
     });
 
@@ -70,8 +112,12 @@ export const verticalSweep: FunctionDescriptor<VerticalSweepParams> = {
           const framePixels = perFixtureInfo.map((info) => {
             if (info.total <= 0)
               return { fixtureId: info.fid, pixelIndices: [] };
+            if (info.worldSpace && angleBins[info.fid]) {
+              // World-space mode: index into the angle-sorted bin
+              const bin = angleBins[info.fid][info.left + progress];
+              return { fixtureId: info.fid, pixelIndices: bin ? [bin.idx] : [] };
+            }
             const logicalIndex = info.left + progress;
-            // serpentine: if row reversed (every other row) you'd have row-level orientation; lacking row concept here, treat serpentine flag as reverse direction
             const actualIndex = info.serpentine
               ? info.total - 1 - logicalIndex
               : logicalIndex;
@@ -105,6 +151,10 @@ export const verticalSweep: FunctionDescriptor<VerticalSweepParams> = {
           ? currentPos
           : width - 1 - currentPos;
         const framePixels = perFixtureInfo.map((info) => {
+          if (info.worldSpace && angleBins[info.fid]) {
+            const bin = angleBins[info.fid][info.left + logicalOffset];
+            return { fixtureId: info.fid, pixelIndices: bin ? [bin.idx] : [] };
+          }
           const logicalIndex = info.left + logicalOffset;
           const actualIndex = info.serpentine
             ? info.total - 1 - logicalIndex
