@@ -21,6 +21,8 @@
 #include "hardware/pio.h"
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
+#include "hardware/clocks.h"
+#include "uart_rx.pio.h"
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
@@ -61,7 +63,19 @@
 
 // GPIO pins (from HW_PINS_BLADE.md)
 #define GP_IR_INDEX         14
-#define GP_XBUS             28
+#define GP_XBUS_RX          28      // JR XBUS Mode B input (PIO UART, 250kbps)
+
+// XBUS streaming protocol
+#define XBUS_BAUD           250000
+#define XBUS_MAX_CHANNELS   22      // 0x01..0x16 supported by sliding-window sync
+
+// CH6 = show start/stop with debounce
+#define XBUS_START_THRESH   1900    // us — above this for N records = start
+#define XBUS_STOP_THRESH    1200    // us — below this for N records = stop
+#define XBUS_DEBOUNCE_RECS  5       // consecutive records to confirm
+
+// CH8 = bailout (immediate, no debounce)
+#define XBUS_BAILOUT_THRESH 1800
 
 // PIO lane GPIOs: data+clock pairs
 #define GP_SEG1_TOP_DATA    2
@@ -114,6 +128,12 @@ static uint32_t           period_history[PERIOD_SMOOTH_N];
 static uint8_t            period_history_idx = 0;
 static uint8_t            period_history_count = 0;
 
+// XBUS PIO UART state (GP28)
+// Decoded channel values in microseconds, 1-indexed.
+static uint16_t xbus_ch_us[XBUS_MAX_CHANNELS + 1] = {0};
+static PIO      xbus_pio;
+static uint     xbus_sm;
+
 // Domain 2 state
 static uint32_t t0_us         = 0;
 static bool     show_running  = false;
@@ -124,13 +144,62 @@ static uint32_t prefetch_event_idx = UINT32_MAX;
 static uint32_t flash_event_count  = 0;
 static uint32_t flash_pattern_count = 0;
 
-// ─── IR Index ISR ─────────────────────────────────────────────────────────────
+// ─── IR Index ISR (GP14, falling edge) ────────────────────────────────────────
+// GP28 is now the XBUS UART RX (PIO-driven) and does not use a GPIO IRQ.
 
 static void ir_index_isr(uint gpio, uint32_t events) {
     if (gpio == GP_IR_INDEX && (events & GPIO_IRQ_EDGE_FALL)) {
         ir_pulse_time_us = time_us_32();
         ir_pulse_flag = true;
     }
+}
+
+// ─── XBUS PIO UART helpers ────────────────────────────────────────────────────
+// uart_rx_program_init() comes from uart_rx.pio.h and runs the SM at
+// 8 × baud (clkdiv computed from sys_clk).
+
+static void xbus_uart_init(void) {
+    // SK9822 uses both PIO blocks but only 2 SMs each — pio1 has 2 free SMs.
+    xbus_pio = pio1;
+    xbus_sm  = (uint)pio_claim_unused_sm(xbus_pio, true);
+    uint offset = pio_add_program(xbus_pio, &uart_rx_program);
+    uart_rx_program_init(xbus_pio, xbus_sm, offset, GP_XBUS_RX, XBUS_BAUD);
+    printf("[xbus] PIO UART RX on GP%d at %u baud (PIO1 SM%u)\n",
+           GP_XBUS_RX, (unsigned)XBUS_BAUD, xbus_sm);
+}
+
+// Drain PIO RX FIFO and parse 4-byte XBUS records.
+// Returns the channel ID of the most-recently updated channel,
+// or 0 if no record was completed.
+static uint8_t xbus_poll(void) {
+    static uint8_t window[4];
+    static uint8_t fill = 0;
+    uint8_t last_updated = 0;
+
+    while (!pio_sm_is_rx_fifo_empty(xbus_pio, xbus_sm)) {
+        uint32_t raw = pio_sm_get(xbus_pio, xbus_sm);
+        uint8_t  b   = (uint8_t)(raw >> 24);
+        window[fill++] = b;
+
+        while (fill >= 4) {
+            bool valid = (window[0] >= 0x01 && window[0] <= 0x16)
+                      && (window[1] == 0x00);
+            if (!valid) {
+                window[0] = window[1];
+                window[1] = window[2];
+                window[2] = window[3];
+                fill = 3;
+                break;
+            }
+            uint8_t  ch_id = window[0];
+            uint16_t pos   = ((uint16_t)window[2] << 8) | window[3];
+            uint16_t us    = (uint16_t)(800u + ((uint32_t)pos * 1400u + 32767u) / 65535u);
+            xbus_ch_us[ch_id] = us;
+            last_updated = ch_id;
+            fill = 0;
+        }
+    }
+    return last_updated;
 }
 
 // ─── Period smoothing (Domain 1) ──────────────────────────────────────────────
@@ -459,7 +528,7 @@ void player_init(void) {
     active_buf   = pattern_buf_a;
     prefetch_buf = pattern_buf_b;
 
-    // IR index input with interrupt on falling edge (TSSP77038 active-low)
+    // IR index input with interrupt on falling edge (TSSP77038 active-low).
     gpio_init(GP_IR_INDEX);
     gpio_set_dir(GP_IR_INDEX, GPIO_IN);
     gpio_pull_up(GP_IR_INDEX);
@@ -469,8 +538,12 @@ void player_init(void) {
     for (uint8_t i = 0; i < PERIOD_SMOOTH_N; i++) period_history[i] = 28571;
     period_history_count = PERIOD_SMOOTH_N;
 
-    // Initialise SK9822 PIO state machines and DMA channels
+    // Initialise SK9822 PIO state machines and DMA channels first — this
+    // loads the SK9822 program into both pio0 and pio1 and claims 4 SMs.
     sk9822_pio_init();
+
+    // XBUS PIO UART on GP28 — uses a free SM on pio1.
+    xbus_uart_init();
 
     printf("[player] init done. Pattern buffers: 2 x %d bytes\n", PATTERN_BUF_BYTES);
 }
@@ -545,8 +618,44 @@ void player_stop(void) {
 void player_run(void) {
     uint32_t last_fired = UINT32_MAX;
 
+    // Show-state debounce counters (consecutive published CH6 records)
+    static int ch6_high_count = 0;
+    static int ch6_low_count  = 0;
+
     while (true) {
         uint32_t now = time_us_32();
+
+        // ── XBUS show trigger (CH6) + bailout (CH8) ──────────────────
+        if (xbus_poll() != 0) {
+            uint16_t ch6 = xbus_ch_us[6];
+            uint16_t ch8 = xbus_ch_us[8];
+
+            // CH8 bailout — immediate, no debounce
+            if (ch8 > XBUS_BAILOUT_THRESH && show_running) {
+                player_stop();
+                printf("[xbus] BAILOUT ch8=%u\n", ch8);
+                ch6_high_count = 0;
+                ch6_low_count  = 0;
+            }
+
+            // CH6 debounced start/stop
+            if (ch6 > XBUS_START_THRESH) {
+                if (++ch6_high_count >= XBUS_DEBOUNCE_RECS && !show_running) {
+                    player_start(0);
+                    printf("[xbus] show START ch6=%u\n", ch6);
+                }
+                ch6_low_count = 0;
+            } else if (ch6 < XBUS_STOP_THRESH) {
+                if (++ch6_low_count >= XBUS_DEBOUNCE_RECS && show_running) {
+                    player_stop();
+                    printf("[xbus] show STOP ch6=%u\n", ch6);
+                }
+                ch6_high_count = 0;
+            } else {
+                ch6_high_count = 0;
+                ch6_low_count  = 0;
+            }
+        }
 
         // ── IR pulse received ────────────────────────────────────────
         if (ir_pulse_flag) {

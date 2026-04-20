@@ -12,5 +12,10 @@ build/
 src-tauri/target/
 target/
 **/(.rs.bk
+# Firmware build outputs
+firmware/build/
+firmware/build_local/
+firmware/build_win/
+firmware/build_xbus/
 # Editor/temp
 *.log

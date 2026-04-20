@@ -1,0 +1,17 @@
+build/
+build_local/
+.DS_Store
+*.DS_Store
+
+# CMake/pioasm leftovers from accidental in-tree builds
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.elf
+*.elf.map
+*.bin
+*.hex
+*.uf2
+*.dis
+*.pio.h

@@ -4,12 +4,20 @@ add_executable(blade_fw
   src/sk9822_pio.c
 )
 pico_generate_pio_header(blade_fw ${CMAKE_CURRENT_LIST_DIR}/pio/sk9822_parallel.pio)
+pico_generate_pio_header(blade_fw ${CMAKE_CURRENT_LIST_DIR}/../tests/xbus_test/uart_rx.pio)
 target_include_directories(blade_fw PRIVATE
   ${CMAKE_CURRENT_LIST_DIR}/include
   ${CMAKE_CURRENT_LIST_DIR}/include/app
   ${CMAKE_CURRENT_BINARY_DIR}
 )
-target_link_libraries(blade_fw synchron_common pico_stdlib hardware_pio hardware_dma hardware_spi)
+target_link_libraries(blade_fw
+  synchron_common
+  pico_stdlib
+  hardware_pio
+  hardware_dma
+  hardware_spi
+  hardware_clocks
+)
 pico_enable_stdio_usb(blade_fw 1)
 pico_enable_stdio_uart(blade_fw 0)
 pico_add_extra_outputs(blade_fw)

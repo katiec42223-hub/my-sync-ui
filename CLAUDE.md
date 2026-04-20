@@ -102,8 +102,23 @@ The PIO drives 4 parallel lanes simultaneously. Each lane drives one 36px segmen
 ### Communication
 - **Upload method:** USB Serial (both controllers, potentially simultaneously)
 - **During show:** Controllers run fully standalone (no tethering)
-- **Sync method:** XBUS — a dedicated sync bus (GP28, 115200 baud inverted) triggers show start across both controllers. The `START` command sends a shared `t0_ms` timestamp; both controllers count from that moment. This is the pre-synced timing mechanism.
+- **Sync method:** XBUS RC link on GP28 — confirmed wire format below.
 - **Audio:** Plays from a separate device — app does not output audio during show
+
+### XBUS / Show-Start Trigger (CONFIRMED FROM HARDWARE)
+- **Pin:** GP28 on the blade controller. GP28 is **not** a hardware UART RX pin on the RP2040, so the firmware runs a PIO UART receiver on `pio1` (the SK9822 driver loads its program into both PIO blocks but only claims 2 SMs each, leaving 2 free SMs on `pio1`). The PIO program lives at `firmware/xbus_test/pio/uart_rx.pio` and is reused by `blade_fw`.
+- **Protocol:** JR XBUS **Mode A**. The Spektrum / JR Matrix 22 transmitter must be set to Mode A — Mode B uses a different framing.
+- **Baud:** 250000 (NOT 115200). PIO state-machine clock = 8 × baud → `clkdiv = sys_clk / 2_000_000 = 62.5` at default 125MHz `sys_clk`.
+- **Polarity:** non-inverted TTL, idle HIGH. **Do not** apply `gpio_set_inover(... INVERT)` on GP28 — earlier docs that called the line "inverted" were wrong.
+- **Frame format:** continuous stream of 4-byte channel records — there is **no global packet header or CRC**. Each record:
+  - `[0]` channel ID, 1-based, valid range `0x01..0x16` (up to 22 channels)
+  - `[1]` sub-ID, always `0x00`
+  - `[2]` position high byte
+  - `[3]` position low byte
+- **Sync strategy:** sliding 4-byte window. A candidate record requires `window[0] ∈ 0x01..0x16` AND `window[1] == 0x00`. On match, decode and advance 4 bytes; otherwise shift left by 1 and retry. A stability filter (publish-after-3-confirmations for values >200µs from the prior published value) prevents lucky-misalignment hits.
+- **Position → microseconds:** `us = 800 + (pos * 1400 / 65535)`, range 800-2200µs (1500µs centre).
+- **Show start/stop (CH6):** START when CH6 > 1900µs, STOP when CH6 < 1200µs. The 1200-1900µs band is dead/no-action. Trigger fires once after **5 consecutive published records** past threshold (~70ms at 14ms frame rate; gives noise immunity).
+- **Bailout (CH8):** if CH8 > 1800µs, stop the show **immediately** with no debounce. This is the panic-stop / pilot-bailout channel and overrides everything else.
 
 ### Firmware Targets (3 total)
 | Target | Purpose |

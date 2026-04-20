@@ -1,5 +1,0 @@
-/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/pioasm-install/pioasm/pioasm
-/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/pioasm-install/pioasm/pioasmTargets.cmake
-/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/pioasm-install/pioasm/pioasmTargets-release.cmake
-/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/pioasm-install/pioasm/pioasmConfig.cmake
-/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/pioasm-install/pioasm/pioasmConfigVersion.cmake

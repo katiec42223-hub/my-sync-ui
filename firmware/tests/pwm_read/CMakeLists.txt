@@ -1,0 +1,5 @@
+add_executable(pwm_read_fw main.c)
+target_link_libraries(pwm_read_fw pico_stdlib hardware_gpio)
+pico_enable_stdio_usb(pwm_read_fw 1)
+pico_enable_stdio_uart(pwm_read_fw 0)
+pico_add_extra_outputs(pwm_read_fw)

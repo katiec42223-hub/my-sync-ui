@@ -1,0 +1,5 @@
+add_executable(pin_sniff_fw main.c)
+target_link_libraries(pin_sniff_fw pico_stdlib hardware_gpio)
+pico_enable_stdio_usb(pin_sniff_fw 1)
+pico_enable_stdio_uart(pin_sniff_fw 0)
+pico_add_extra_outputs(pin_sniff_fw)

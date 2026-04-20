@@ -1,0 +1,43 @@
+; uart_rx.pio
+; Minimal 8N1 PIO UART receiver — no parity, no framing-error reporting.
+; LSB first, idle HIGH (standard TTL serial polarity).
+;
+; State-machine clock = 8 × baud rate. Each bit takes 8 SM cycles.
+; ISR shifts right with autopush at threshold=8, so received bytes
+; arrive in the high 8 bits [31:24] of each 32-bit FIFO word.
+
+.program uart_rx
+
+.wrap_target
+    wait 0 pin 0        ; stall until start bit (line drops low)
+    set x, 7    [10]    ; preload bit counter; delay until middle of first data bit
+bitloop:
+    in pins, 1          ; sample one data bit (LSB first)
+    jmp x-- bitloop [6] ; 8 cycles per bit (1 + 1 + 6 delay)
+.wrap
+
+% c-sdk {
+#include "hardware/clocks.h"
+#include "hardware/gpio.h"
+
+static inline void uart_rx_program_init(PIO pio, uint sm, uint offset,
+                                        uint pin, uint baud) {
+    // Set the pin to input, pull-up so a disconnected line idles HIGH.
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
+    pio_gpio_init(pio, pin);
+    gpio_pull_up(pin);
+
+    pio_sm_config c = uart_rx_program_get_default_config(offset);
+    sm_config_set_in_pins(&c, pin);                 // for WAIT and IN
+    sm_config_set_jmp_pin(&c, pin);                 // unused here, but harmless
+    sm_config_set_in_shift(&c, true, true, 8);      // shift right, autopush, threshold=8
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);  // 8-deep RX FIFO
+
+    float div = (float)clock_get_hz(clk_sys) / (8.0f * (float)baud);
+    sm_config_set_clkdiv(&c, div);
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+%}

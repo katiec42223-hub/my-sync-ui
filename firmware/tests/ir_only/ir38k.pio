@@ -1,0 +1,13 @@
+; ir38k.pio
+; Drive a single GPIO at 38kHz / 50% duty using PIO.
+;
+; Each `set pins` is 1 cycle + [24] delay = 25 SM cycles.
+; One full period = 2 × 25 = 50 SM cycles.
+; clkdiv = sys_clk / (38_000 × 50) ≈ 65.79 at 125MHz.
+; Output frequency = sys_clk / (clkdiv × 50) ≈ 38kHz.
+
+.program ir38k
+.wrap_target
+    set pins, 1  [24]
+    set pins, 0  [24]
+.wrap

@@ -1,2 +1,0 @@
-/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/_deps/picotool-build/enc_bootloader/CMakeFiles/edit_cache.dir
-/Users/cadeciripompa/Documents/SYNCHRON V3 Local/my-sync-ui/firmware/build_local/_deps/picotool-build/enc_bootloader/CMakeFiles/rebuild_cache.dir
